@@ -47,7 +47,9 @@ WORKDIR /app
 COPY --from=builder /app/node_modules node_modules
 COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/core/fonts packages/core/fonts
+COPY --from=builder /app/packages/server/package.json packages/server/
 COPY --from=builder /app/packages/server/dist packages/server/dist
+COPY --from=builder /app/packages/konva-engine/package.json packages/konva-engine/
 COPY --from=builder /app/packages/konva-engine/dist packages/konva-engine/dist
 
 EXPOSE 3000

@@ -53,7 +53,9 @@ WORKDIR /app
 COPY --from=builder /app/node_modules node_modules
 COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/core/fonts packages/core/fonts
+COPY --from=builder /app/packages/server/package.json packages/server/
 COPY --from=builder /app/packages/server/dist packages/server/dist
+COPY --from=builder /app/packages/playwright-engine/package.json packages/playwright-engine/
 COPY --from=builder /app/packages/playwright-engine/dist packages/playwright-engine/dist
 
 EXPOSE 3000
