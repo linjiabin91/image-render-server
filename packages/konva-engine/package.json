@@ -1,0 +1,21 @@
+{
+  "name": "@render-server/konva-engine",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "LOG_PRETTY=true npm run build && node dist/server.js"
+  },
+  "dependencies": {
+    "@render-server/core": "*",
+    "@render-server/server": "*",
+    "konva": "^9.3.0",
+    "@napi-rs/canvas": "^1.0.0",
+    "@napi-rs/image": "^1.12.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
