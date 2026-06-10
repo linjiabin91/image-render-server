@@ -1,4 +1,4 @@
-import {type Engine, logger, type RenderOptions} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
 import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {StaticCanvas, FabricImage, getFabricDocument, setEnv, getEnv} from 'fabric/node';
@@ -207,7 +207,7 @@ export class FabricEngine implements Engine {
         const pw = Math.ceil(width * pixelRatio);
         const ph = Math.ceil(height * pixelRatio);
         const json = params.templateJson;
-        const perf = this.#perf();
+        const perf = new PerfTimer("render");
 
         const resolved = this.#resolveVariables(json, params.variables);
         perf.mark("resolve");
@@ -351,13 +351,6 @@ export class FabricEngine implements Engine {
         return fc;
     }
 
-    #perf() {
-        const m: Record<string, number> = {}; let p = performance.now();
-        return {
-            mark(n: string) { const n2 = performance.now(); m[n] = +(n2 - p).toFixed(1); p = n2; },
-            steps() { return m; },
-        };
-    }
 }
 
 function collectImageUrls(j: FabricTemplateJson): string[] {

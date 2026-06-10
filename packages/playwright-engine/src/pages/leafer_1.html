@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script>
+/**
+ * Playwright 渲染页面入口
+ *
+ * 页面通过 playwright-engine 的 page.evaluate('draw', json) 调用此函数。
+ * 第一版为空实现，用户可根据需要自定义渲染逻辑。
+ *
+ * @param {Object} json - 渲染模板 JSON
+ */
+async function draw(json) {
+    // 用户自定义渲染逻辑
+    // 第一版为空实现
+    return;
+}
+</script>
+</body>
+</html>

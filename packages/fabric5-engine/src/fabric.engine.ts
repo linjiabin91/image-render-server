@@ -1,4 +1,4 @@
-import {type Engine, logger, type RenderOptions} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
 import {Canvas, FontLibrary, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
 import {fileURLToPath} from 'node:url';
@@ -293,7 +293,7 @@ export class FabricEngine implements Engine {
         const pw = Math.ceil(width * pixelRatio);
         const ph = Math.ceil(height * pixelRatio);
         const json = params.templateJson;
-        const perf = this.#perf();
+        const perf = new PerfTimer("render");
 
         // (a) 变量替换
         const resolvedJson = this.#resolveVariables(json, params.variables);
@@ -466,20 +466,6 @@ export class FabricEngine implements Engine {
         return fabricCanvas;
     }
 
-    #perf() {
-        const marks: Record<string, number> = {};
-        let prev = performance.now();
-        return {
-            mark(name: string) {
-                const now = performance.now();
-                marks[name] = +(now - prev).toFixed(1);
-                prev = now;
-            },
-            steps() {
-                return marks;
-            },
-        };
-    }
 }
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────

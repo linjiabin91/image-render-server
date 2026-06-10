@@ -1,4 +1,4 @@
-import {type Engine, logger, type RenderOptions} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
 import {Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
@@ -76,7 +76,7 @@ export class LeaferEngine implements Engine {
         const pw = Math.ceil(width * pixelRatio);
         const ph = Math.ceil(height * pixelRatio);
         const json = params.templateJson;
-        const perf = this.#perf();
+        const perf = new PerfTimer("render");
 
         // (a) 预下载图片
         await this.#preloadImages(json);
@@ -112,22 +112,6 @@ export class LeaferEngine implements Engine {
 
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
         return result;
-    }
-
-    /** 简易性能计时器 */
-    #perf() {
-        const marks: Record<string, number> = {};
-        let prev = performance.now();
-        return {
-            mark(name: string) {
-                const now = performance.now();
-                marks[name] = +(now - prev).toFixed(1);
-                prev = now;
-            },
-            steps() {
-                return marks;
-            },
-        };
     }
 
     /**
