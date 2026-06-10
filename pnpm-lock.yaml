@@ -106,9 +106,6 @@ importers:
 
   packages/playwright-engine:
     dependencies:
-      '@napi-rs/image':
-        specifier: ^1.12.0
-        version: registry.npmmirror.com/@napi-rs/image@1.12.0(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)
       '@render-server/core':
         specifier: '*'
         version: link:../core

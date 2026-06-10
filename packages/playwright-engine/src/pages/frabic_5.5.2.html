@@ -111,12 +111,6 @@ async function draw(params) {
   canvasEl.style.width = (options.width) + 'px';
   canvasEl.style.height = (options.height) + 'px';
 
-  // 拦截 getContext 以注入 willReadFrequently（加速 getImageData）
-  var origGetContext = canvasEl.getContext.bind(canvasEl);
-  canvasEl.getContext = function(type, attrs) {
-    return origGetContext(type, Object.assign({willReadFrequently: true}, attrs));
-  };
-
   if (!_canvas) {
     // 首次：创建 StaticCanvas
     _canvas = new fabric.StaticCanvas(canvasEl, {
@@ -146,20 +140,8 @@ async function draw(params) {
   _canvas.renderAll();
   await new Promise(function (resolve) { requestAnimationFrame(resolve); });
 
-  // 缓存命中时跳过昂贵的 getImageData（大画布下极慢），直接退回到截图
-  if (cacheKey && cacheKey === _cacheKey) {
-    return null;
-  }
-
-  // 首次全量：尝试读取原始像素返回 @napi-rs/image 编码（更精细的压缩控制）
-  try {
-    var ctx = _canvas.getContext();
-    if (!ctx) return null;
-    var imageData = ctx.getImageData(0, 0, width, height);
-    return { pixels: imageData.data, width: width, height: height };
-  } catch (e) {
-    return null;
-  }
+  // 全部走 Playwright 截图，不返回像素数据
+  return null;
 }
 
 /**

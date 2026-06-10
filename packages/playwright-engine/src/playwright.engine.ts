@@ -7,7 +7,6 @@
  */
 import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
 import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
-import {CompressionType, Transformer} from '@napi-rs/image';
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname, join} from "node:path";
@@ -144,42 +143,27 @@ export class PlaywrightEngine implements Engine {
 
       // (6) 调用 draw({options, templateJson, cacheKey})
       //     模板 JSON 已完成变量替换；cacheKey 用于页面内增量更新判断
-      //     draw 返回 {pixels, width, height} 或 null（跨域 canvas 退回到截图）
-      const pixelData = await entry.page.evaluate((data) => {
-        return (window as unknown as Record<string, (data: unknown) => Promise<unknown>>).draw(data);
+      await entry.page.evaluate((data) => {
+        (window as unknown as Record<string, (data: unknown) => void>).draw(data);
       }, {options: params.options, templateJson: resolvedJson, cacheKey: key});
       // draw 完成后再等待网络空闲，确保远程图片加载完毕
       await entry.page.waitForLoadState("networkidle", {timeout: DRAW_TIMEOUT});
       perf.mark("draw");
 
-      // (7) 编码输出
-      const {format, quantity, pixelRatio = 1, width, height, compressLevel = 0} = params.options;
+      // (7) 截图 — 全部走 Playwright page.screenshot()
+      const {format, quantity, pixelRatio = 1, width, height} = params.options;
       const pw = Math.ceil(width * pixelRatio);
       const ph = Math.ceil(height * pixelRatio);
 
-      let result: Buffer;
-      if (pixelData && format === "png") {
-        // PNG：用 raw buffer + @napi-rs/image 精确控制压缩比
-        const pd = pixelData as {pixels: Uint8Array; width: number; height: number};
-        const pixels = Buffer.from(pd.pixels);
-        const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
-        result = tx.pngSync({
-          compressionType: compressLevel === 0 ? CompressionType.Default
-            : compressLevel === 1 ? CompressionType.Best
-            : CompressionType.Fast,
-        });
-      } else {
-        // JPEG 或跨域 canvas 退回到 Playwright 截图
-        const screenshotType = toScreenshotType(format);
-        const opts: PageScreenshotOptions = {
-          type: screenshotType,
-          clip: {x: 0, y: 0, width: pw, height: ph},
-        };
-        if (screenshotType === "jpeg") {
-          opts.quality = quantity;
-        }
-        result = await entry.page.screenshot(opts);
+      const screenshotType = toScreenshotType(format);
+      const opts: PageScreenshotOptions = {
+        type: screenshotType,
+        clip: {x: 0, y: 0, width: pw, height: ph},
+      };
+      if (screenshotType === "jpeg") {
+        opts.quality = quantity;
       }
+      const result = await entry.page.screenshot(opts);
       perf.mark("screenshot");
 
       logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
