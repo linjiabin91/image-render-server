@@ -1,5 +1,5 @@
 import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
-import {Canvas, loadImage} from 'skia-canvas';
+import {Canvas, Image, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas} from 'fabric/node';
 import {createHash} from 'node:crypto';
@@ -43,10 +43,10 @@ if (cleanupTimer.unref) cleanupTimer.unref();
 const cacheKeyFor = (url: string) => createHash('md5').update(url).digest('hex');
 const cachePathFor = (url: string) => resolve(SHARED_CACHE_DIR, cacheKeyFor(url));
 
-const imageCache = new LRUCache<string, any>({max: 50, ttl: 1000 * 60 * 30});
-const inflightRequests = new LRUCache<string, Promise<any>>({max: 100, ttl: 1000 * 60 * 5});
+const imageCache = new LRUCache<string, Image>({max: 50, ttl: 1000 * 60 * 30});
+const inflightRequests = new LRUCache<string, Promise<unknown>>({max: 100, ttl: 1000 * 60 * 5});
 
-const loadImageWithCache = async (url: string): Promise<any> => {
+const loadImageWithCache = async (url: string): Promise<Image> => {
     const cp = cachePathFor(url);
     if (existsSync(cp)) {
         try {
@@ -91,7 +91,15 @@ const loadImageWithCache = async (url: string): Promise<any> => {
 // CSS 约束修正 — 前端 CSS object-fit 导致的 width/scaleX 错配
 // ═══════════════════════════════════════════════════════════════════════════
 
-const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl: any) => {
+/** 图片对象最小接口 — 包含 Fabric CSS 约束修正所需的属性 */
+interface ImageLike {
+    width: number;
+    height: number;
+    naturalWidth?: number;
+    naturalHeight?: number;
+}
+
+const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl: ImageLike) => {
     if (!opts || !imgEl) return;
     const ew = imgEl.naturalWidth || imgEl.width || 0;
     const eh = imgEl.naturalHeight || imgEl.height || 0;
@@ -113,33 +121,43 @@ const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl:
 // 替换 Fabric 7 内部 document — 拦截 createElement('canvas') 返回 @napi-rs/canvas
 // ═══════════════════════════════════════════════════════════════════════════
 
-const patchEl = (el: any) => {
-    if (!el.getAttribute) {
-        el.getAttribute = (n: string) => n === 'dir' ? 'ltr' : null;
-        el.setAttribute = () => {
-        };
-        el.removeAttribute = () => {
-        };
-        el.hasAttribute = () => false;
-        el.addEventListener = () => {
-        };
-        el.removeEventListener = () => {
-        };
-        el.classList = {
-            add: () => {
-            }, remove: () => {
-            }, contains: () => false, toggle: () => false
-        };
-        el.parentNode = null;
+/** Fabric 7 需要的 canvas 元素最小 DOM 接口 */
+interface CanvasElementLike {
+    getAttribute(name: string): string | null;
+    setAttribute(name: string, value: string): void;
+    removeAttribute(name: string): void;
+    hasAttribute(name: string): boolean;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
+    classList: Pick<DOMTokenList, 'add' | 'remove' | 'contains' | 'toggle'>;
+    parentNode: Node | null;
+    style: Record<string, string>;
+    width: number;
+    height: number;
+    getContext(contextId: '2d', options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
+}
+
+const patchEl = (el: Canvas): Canvas & CanvasElementLike => {
+    const patched = el as unknown as CanvasElementLike;
+    if (!patched.getAttribute) {
+        patched.getAttribute = (n: string) => n === 'dir' ? 'ltr' : null;
+        patched.setAttribute = () => {};
+        patched.removeAttribute = () => {};
+        patched.hasAttribute = () => false;
+        patched.addEventListener = () => {};
+        patched.removeEventListener = () => {};
+        patched.classList = { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false };
+        patched.parentNode = null;
     }
-    if (!el.style) Object.defineProperty(el, 'style', {value: {}, writable: true});
-    return el;
+    if (!patched.style) Object.defineProperty(el, 'style', {value: {}, writable: true});
+    return el as Canvas & CanvasElementLike;
 };
 
 const origDoc = getFabricDocument();
 const proxyDoc = new Proxy(origDoc, {
     get(target, prop, receiver) {
         if (prop === 'createElement') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- jsdom createElement
             return (tagName: string, options?: any) => {
                 if (tagName.toLowerCase() === 'canvas') {
                     return patchEl(new Canvas(1, 1));
@@ -159,12 +177,13 @@ setEnv({...getEnv(), document: proxyDoc});
 // loadFromJSON 走 FabricImage.fromObject（可写），在此处拦截。
 
 const _fromObjectOrig = FabricImage.fromObject.bind(FabricImage);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fabric fromObject accepts dynamic payloads
 FabricImage.fromObject = ((object: any) => {
     if (object.src) {
         const cached = imageCache.get(object.src);
         if (cached) {
             normalizeImageOptions(object, cached);
-            return new FabricImage(cached, object);
+            return new FabricImage(cached as unknown as HTMLImageElement, object);
         }
         let p = inflightRequests.get(object.src);
         if (!p) {
@@ -172,9 +191,9 @@ FabricImage.fromObject = ((object: any) => {
             inflightRequests.set(object.src, p);
             p.finally(() => inflightRequests.delete(object.src));
         }
-        return p.then((el: any) => {
-            normalizeImageOptions(object, el);
-            return new FabricImage(el, object);
+        return p.then((el: unknown) => {
+            normalizeImageOptions(object, el as ImageLike);
+            return new FabricImage(el as unknown as HTMLImageElement, object);
         });
     }
     return _fromObjectOrig(object);
@@ -185,7 +204,7 @@ FabricImage.fromURL = ((url: string, callback?: (img?: FabricImage) => void, img
     const cached = imageCache.get(url);
     if (cached) {
         normalizeImageOptions(imgOptions, cached);
-        callback?.(new FabricImage(cached, imgOptions));
+        callback?.(new FabricImage(cached as unknown as HTMLImageElement, imgOptions));
         return;
     }
     let p = inflightRequests.get(url);
@@ -194,9 +213,9 @@ FabricImage.fromURL = ((url: string, callback?: (img?: FabricImage) => void, img
         inflightRequests.set(url, p);
         p.finally(() => inflightRequests.delete(url));
     }
-    p.then((el: any) => {
-        normalizeImageOptions(imgOptions, el);
-        callback?.(new FabricImage(el, imgOptions));
+    p.then((el: unknown) => {
+        normalizeImageOptions(imgOptions, el as ImageLike);
+        callback?.(new FabricImage(el as unknown as HTMLImageElement, imgOptions));
     }).catch(() => callback?.());
 }) as unknown as typeof FabricImage.fromURL;
 
@@ -272,7 +291,7 @@ export class FabricEngine implements Engine {
         perf.mark("fabric");
 
         // (d) 编码输出
-        const skCanvas = (fc as unknown as { lowerCanvasEl: any }).lowerCanvasEl;
+        const skCanvas = (fc as unknown as { lowerCanvasEl: { toBufferSync: (fmt: string, opts?: Record<string, unknown>) => Buffer } }).lowerCanvasEl;
 
         let result: Buffer;
         if (format === "png") {
@@ -314,7 +333,7 @@ export class FabricEngine implements Engine {
                 try {
                     const img = await loadImageWithCache(u);
                     imageCache.set(u, img);
-                } catch (e: any) {
+                } catch (e: unknown) {
                     logger.warn({err: e, url: u.slice(0, 80)}, "img fail");
                 }
             }
@@ -353,6 +372,7 @@ export class FabricEngine implements Engine {
                     // 仅对 Fabric 5 模板做位置修正
                     const isFabric5 = String(json.version ?? '').startsWith('5');
                     if (isFabric5) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fabric5→7 migration
                         const fix = (obj: any) => {
                             if (!obj || obj._f5fixed) return;
                             obj._f5fixed = true; // 防止重复修正
@@ -396,7 +416,7 @@ export class FabricEngine implements Engine {
             this.#pool.delete(k);
         }
         const raw = patchEl(new Canvas(w, h));
-        const fc = new StaticCanvas(raw, {width: w, height: h, renderOnAddRemove: false});
+        const fc = new StaticCanvas(raw as unknown as HTMLCanvasElement, {width: w, height: h, renderOnAddRemove: false});
         this.#pool.set(key, fc);
         return fc;
     }
