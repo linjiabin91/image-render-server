@@ -22,6 +22,9 @@ COPY packages/konva-engine/package.json packages/konva-engine/
 RUN npm install
 
 COPY tsconfig.json .
+COPY packages/core/tsconfig.json packages/core/
+COPY packages/server/tsconfig.json packages/server/
+COPY packages/konva-engine/tsconfig.json packages/konva-engine/
 COPY packages/core/src packages/core/src
 COPY packages/server/src packages/server/src
 COPY packages/konva-engine/src packages/konva-engine/src

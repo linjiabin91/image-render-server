@@ -22,8 +22,11 @@ COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
 RUN npm install
 
-# 源码层 — 仅复制当前引擎所需
+# 源码层 — 仅复制当前引擎所需（含 tsconfig，tsc -b 需要子包 tsconfig.json）
 COPY tsconfig.json .
+COPY packages/core/tsconfig.json packages/core/
+COPY packages/server/tsconfig.json packages/server/
+COPY packages/leafer-engine/tsconfig.json packages/leafer-engine/
 COPY packages/core/src packages/core/src
 COPY packages/server/src packages/server/src
 COPY packages/leafer-engine/src packages/leafer-engine/src
