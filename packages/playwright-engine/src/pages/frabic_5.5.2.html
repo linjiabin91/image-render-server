@@ -112,9 +112,11 @@ async function draw(params) {
   if (!_canvas) {
     // 首次：创建 StaticCanvas
     _canvas = new fabric.StaticCanvas(canvasEl, {
-      renderOnAddRemove: false,
       width,
       height,
+      enableRetinaScaling: false,  // 必关
+      imageSmoothing: true,
+      renderOnAddRemove: false,    // 必关（手动renderAll）
     });
   } else {
     // 复用：更新尺寸
@@ -214,6 +216,19 @@ function smartUpdate(canvas, json) {
     }
   }
 }
+fabric.Image.fromURL(url, img => {
+  img.set({
+    crossOrigin: 'anonymous',
+    scaleX: 1,    // 绝不缩放
+    scaleY: 1,
+  });
+}, { crossOrigin: 'anonymous' });
+// 全关！！！
+fabric.Object.prototype.objectCaching = false;
+fabric.Object.prototype.stateful = false;
+fabric.Object.prototype.borderColor = '#000';
+fabric.Text.prototype.skipCaching = true;
+fabric.Text.prototype.originX = 'left';
 </script>
 </body>
 </html>

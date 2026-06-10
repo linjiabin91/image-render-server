@@ -34,6 +34,7 @@ function getWorkerPath(): string {
 export async function startServer(port: number): Promise<void> {
   // 启动浏览器服务器（launchServer 返回 BrowserServer，通过 WebSocket 暴露 CDP endpoint）
   const browserServer = await chromium.launchServer({
+    headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -46,6 +47,9 @@ export async function startServer(port: number): Promise<void> {
       "--disable-sync",
       "--disable-translate",
       "--hide-scrollbars",
+      '--single-process',
+      '--disable-accelerated-2d-canvas',
+      '--disable-background-timer-throttling'
     ],
   });
 
