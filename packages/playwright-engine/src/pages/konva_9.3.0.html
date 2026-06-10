@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    canvas#renderCanvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<script src="konva/9.3.0/konva.min.js"></script>
+<script>
+/**
+ * konva 9.3.0 渲染页面入口
+ *
+ * 接收 {options, templateJson, cacheKey}，使用 Konva Stage 渲染。
+ * 首次调用或 cacheKey 变更时全量重建；
+ * 相同 cacheKey 时走增量更新，仅更新变化的 text/image 属性。
+ *
+ * 兼容 tag 和 className 两种节点类型标识：
+ * - tag: "Text" | "Image" | "Group"（leafer 格式）
+ * - className: "Text" | "Image" | "Group" | "Layer"（fabric 格式）
+ *
+ * @param {Object} params
+ * @param {Object} params.options - 渲染配置 {width, height, pixelRatio, ...}
+ * @param {Object} params.templateJson - 变量替换后的模板 JSON
+ * @param {string} params.cacheKey - 模板 MD5，用于增量更新判断
+ */
+
+// ── 禁用自动重绘 ──────────────────────────────────────────────────────────
+
+Konva.autoDrawEnabled = false;
+
+/** @type {Konva.Stage|null} */
+var _stage = null;
+/** @type {Konva.Layer|null} */
+var _layer = null;
+/** @type {string|null} */
+var _cacheKey = null;
+
+/**
+ * 获取节点类型 — 兼容 tag 和 className
+ */
+function getNodeType(node) {
+  return (node.tag || node.className || '').toLowerCase();
+}
+
+/**
+ * 获取图片 URL — 兼容 image、url、fill.url
+ */
+function getImageUrl(node) {
+  if (node.image && typeof node.image === 'string') return node.image;
+  if (node.url) return node.url;
+  if (node.fill && typeof node.fill === 'object' && node.fill.url) return node.fill.url;
+  return undefined;
+}
+
+async function draw(params) {
+  var options = params.options;
+  var templateJson = params.templateJson;
+  var cacheKey = params.cacheKey;
+  var pixelRatio = options.pixelRatio || 1;
+  var width = Math.ceil(options.width * pixelRatio);
+  var height = Math.ceil(options.height * pixelRatio);
+
+  // ── 1. 初始化/调整画布 ──────────────────────────────────────────
+  var canvasEl = document.getElementById('renderCanvas');
+  canvasEl.width = width;
+  canvasEl.height = height;
+  canvasEl.style.width = options.width + 'px';
+  canvasEl.style.height = options.height + 'px';
+
+  if (!_stage) {
+    _stage = new Konva.Stage({
+      container: 'renderCanvas',
+      width: width,
+      height: height,
+    });
+    _layer = new Konva.Layer();
+    _stage.add(_layer);
+  } else {
+    _stage.width(width);
+    _stage.height(height);
+  }
+
+  // ── 2. 加载/更新内容 ──────────────────────────────────────────
+  var childrenLen = _layer.children ? _layer.children.length : 0;
+  if (cacheKey && cacheKey === _cacheKey && childrenLen > 0) {
+    console.log('[draw] CACHE HIT', {cacheKey: cacheKey, _cacheKey: _cacheKey, children: childrenLen});
+    smartUpdate(_layer, templateJson);
+  } else {
+    console.log('[draw] CACHE MISS', {cacheKey: cacheKey, _cacheKey: _cacheKey, children: childrenLen});
+    _layer.destroyChildren();
+    if (templateJson.children) {
+      for (var ci = 0; ci < templateJson.children.length; ci++) {
+        var childNode = buildNode(templateJson.children[ci]);
+        if (childNode) {
+          _layer.add(childNode);
+        }
+      }
+    }
+    _cacheKey = cacheKey;
+  }
+
+  _layer.draw();
+  await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+  return null;
+}
+
+/**
+ * 递归构建 Konva 节点
+ */
+function buildNode(node) {
+  var type = getNodeType(node);
+  if (type === 'text') {
+    return buildTextNode(node);
+  }
+  if (type === 'image') {
+    return buildImageNode(node);
+  }
+  if (type === 'group' || type === 'layer') {
+    var group = new Konva.Group({
+      x: node.x || 0,
+      y: node.y || 0,
+      width: node.width,
+      height: node.height,
+    });
+    if (node.children) {
+      for (var ci = 0; ci < node.children.length; ci++) {
+        var childNode = buildNode(node.children[ci]);
+        if (childNode) {
+          group.add(childNode);
+        }
+      }
+    }
+    return group;
+  }
+  return null;
+}
+
+/**
+ * 构建 Konva.Text 节点
+ */
+function buildTextNode(node) {
+  var config = {
+    x: node.x || 0,
+    y: node.y || 0,
+    text: node.text || '',
+    fontSize: node.fontSize || 16,
+    fontFamily: node.fontFamily || 'sans-serif',
+    fill: typeof node.fill === 'string' ? node.fill : '#333',
+  };
+  if (node.width !== undefined) config.width = node.width;
+  if (node.height !== undefined) config.height = node.height;
+  return new Konva.Text(config);
+}
+
+/**
+ * 构建 Konva.Image 节点
+ *
+ * 图片 URL 来源：node.image > node.url > node.fill.url
+ */
+function buildImageNode(node) {
+  var imgUrl = getImageUrl(node);
+  if (!imgUrl) return null;
+
+  var img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = imgUrl;
+
+  var config = {
+    x: node.x || 0,
+    y: node.y || 0,
+    image: img,
+  };
+  if (node.width !== undefined) config.width = node.width;
+  if (node.height !== undefined) config.height = node.height;
+  return new Konva.Image(config);
+}
+
+/**
+ * 增量更新 — 按数组索引匹配，仅更新变动的 text/image 属性
+ *
+ * 前置 cache hit 保证数据结构一致。
+ * 递归处理嵌套子节点（Group/Layer）。
+ */
+function smartUpdate(layer, json) {
+  var existing = layer.children || [];
+  var newChildren = json.children || [];
+  smartUpdateChildren(existing, newChildren);
+}
+
+function smartUpdateChildren(existing, newChildren) {
+  var len = Math.min(existing.length, newChildren.length);
+  var updated = 0;
+  for (var i = 0; i < len; i++) {
+    var target = existing[i];
+    var node = newChildren[i];
+    if (!target || !node) continue;
+
+    var nodeType = getNodeType(node);
+    var targetClass = target.getClassName();
+
+    if (nodeType === 'text' && targetClass === 'Text') {
+      if (target.text() !== node.text) {
+        console.log('[smartUpdate] text changed', {index: i, from: target.text(), to: node.text});
+        target.text(node.text || '');
+        updated++;
+      }
+    } else if (nodeType === 'image' && targetClass === 'Image') {
+      var newUrl = getImageUrl(node);
+      var currentUrl = target.__url;
+      if (newUrl !== undefined && newUrl !== currentUrl) {
+        console.log('[smartUpdate] image changed', {index: i, from: currentUrl, to: newUrl});
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = (function(t, i) { return function() { t.image(i); t.__url = newUrl; }; })(target, img);
+        img.onerror = function() { console.warn('[smartUpdate] image load failed', newUrl); };
+        img.src = newUrl;
+        target.__url = newUrl;
+        updated++;
+      }
+    }
+
+    // 递归处理 Group/Layer 子节点
+    var targetChildren = target.children;
+    var nodeChildren = node.children;
+    if (targetChildren && targetChildren.length > 0 && nodeChildren && nodeChildren.length > 0) {
+      smartUpdateChildren(targetChildren, nodeChildren);
+    }
+  }
+  console.log('[smartUpdate] done', {total: existing.length, updated: updated});
+}
+</script>
+</body>
+</html>
