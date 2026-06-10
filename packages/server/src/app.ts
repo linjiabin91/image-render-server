@@ -103,7 +103,7 @@ export class App {
 
   /** 启动 HTTP 服务 */
   async start(): Promise<void> {
-    await this.#fastify.listen({ port: this.port });
+    await this.#fastify.listen({ port: this.port, host: '0.0.0.0' });
   }
 
   /** 停止服务，释放线程池资源 */
