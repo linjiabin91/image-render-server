@@ -15,7 +15,7 @@ const Konva = KonvaNs as unknown as KonvaNamespace;
 import {Canvas, GlobalFonts, loadImage} from '@napi-rs/canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {createHash} from "node:crypto";
-import {dirname, join, resolve} from "node:path";
+import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {existsSync, readdirSync, statSync} from "node:fs";
 
@@ -276,7 +276,8 @@ export class KonvaEngine implements Engine {
         } else {
             // 其他格式：@napi-rs/canvas 原生 toBuffer
             const fmt = format === 'jpg' ? 'jpeg' : format;
-            result = (entry.canvas as any).toBuffer(`image/${fmt}`) as Buffer;
+            const mime: 'image/jpeg' | 'image/webp' = fmt === 'jpeg' ? 'image/jpeg' : 'image/webp';
+            result = entry.canvas.toBuffer(mime) as Buffer;
             perf.mark("encode");
         }
 

@@ -34,7 +34,7 @@ export interface AppOptions {
   maxHeapUsedBytes?: number;
 }
 
-let threads = Math.max(2, os.cpus().length - 2);
+const threads = Math.max(2, os.cpus().length - 2);
 
 export class App {
   #fastify = Fastify({ logger: true });

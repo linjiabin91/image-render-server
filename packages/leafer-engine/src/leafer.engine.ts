@@ -104,7 +104,7 @@ export class LeaferEngine implements Engine {
             perf.mark("preload");
             leafer.clear();
             if (resolvedJson.children) {
-                leafer.add(resolvedJson.children as any);
+                leafer.add(resolvedJson.children as unknown as IUIInputData);
             }
             this.#cacheKeyMap.set(leafer, cacheKey);
         }
@@ -147,7 +147,7 @@ export class LeaferEngine implements Engine {
         this.#initialized = false;
     }
 
-    #getLeafer(cacheKey: String, width: number, height: number): Leafer {
+    #getLeafer(cacheKey: string, width: number, height: number): Leafer {
         const key = `${cacheKey}`;
 
         // 命中了：移到末尾（最近使用），返回
@@ -255,7 +255,7 @@ function collectImageUrls(json: LeaferTemplateJson): string[] {
 
     function walk(childs: LeaferNode[]): void {
         if (!childs || !childs.length) return;
-        for (let child of childs) {
+        for (const child of childs) {
             if (child.tag === "Image" && child.url) {
                 urls.add(child.url);
             }

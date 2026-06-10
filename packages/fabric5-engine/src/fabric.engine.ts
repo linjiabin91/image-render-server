@@ -58,7 +58,7 @@ const patchCanvasElement = (nodeCanvas: Canvas): Canvas => {
     return nodeCanvas;
 };
 
-fabric.util.createCanvasElement = () => patchCanvasElement(new Canvas(1, 1, {gpu: false} as any)) as unknown as HTMLCanvasElement;
+fabric.util.createCanvasElement = () => patchCanvasElement(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 图片加载失败追踪
@@ -219,7 +219,6 @@ fabric.util.loadImage = ((url: string, callback: (img: HTMLImageElement | null, 
 }) as unknown as typeof fabric.util.loadImage;
 
 // Fabric 5 的 loadFromJSON 走 fabric.Image.fromObject，需拦截做 CSS 修正
-// eslint-disable-next-line @typescript-eslint/unbound-method
 const ImageKlass = fabric.Image as unknown as Record<string, unknown>;
 ImageKlass.fromObject = function (_object: Record<string, unknown>, callback: (img: fabric.Image | null, isError: boolean) => void) {
     const object = fabric.util.object.clone(_object);
@@ -329,7 +328,7 @@ export class FabricEngine implements Engine {
             perf.mark("encode");
         } else {
             // 其他格式：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
-            result = skCanvas.toBufferSync(format, {quality: quantity/100} as any);
+            result = skCanvas.toBufferSync(format, {quality: quantity/100}) as Buffer;
             perf.mark("pixels+encode");
         }
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
@@ -405,13 +404,13 @@ export class FabricEngine implements Engine {
         const existing = skCanvas.getObjects();
         for (let i = 0; i < resolvedJson.objects.length; i++) {
             const obj = resolvedJson.objects[i];
-            const target = existing[i];
-            if (obj.id != (target as any).id) continue;
+            const target = existing[i] as unknown as FabricObjectLike;
+            if (obj.id != target.id) continue;
             const type = (obj.type ?? '').toLowerCase();
             if (type.includes('text')) {
-                (target as any).set({'text': obj.text ?? '', 'dirty': true});
+                target.set({'text': obj.text ?? '', 'dirty': true});
             } else if (type === 'image') {
-                (target as any).set({'src': obj.src ?? '', 'dirty': true});
+                target.set({'src': obj.src ?? '', 'dirty': true});
             }
         }
         skCanvas.renderAll();
@@ -450,7 +449,7 @@ export class FabricEngine implements Engine {
             this.#canvasPool.delete(oldestKey);
         }
 
-        const rawCanvas = patchCanvasElement(new Canvas(width, height, {gpu: false} as any));
+        const rawCanvas = patchCanvasElement(new Canvas(width, height));
         const fabricCanvas = new fabric.StaticCanvas(rawCanvas as unknown as HTMLCanvasElement, {
             width,
             height,
@@ -460,6 +459,13 @@ export class FabricEngine implements Engine {
         return fabricCanvas;
     }
 
+}
+
+/** Fabric 对象最小接口 — 用于 smartUpdate 避免 as any */
+interface FabricObjectLike {
+    id?: string;
+    set(key: string, value: unknown): void;
+    set(options: Record<string, unknown>): void;
 }
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────

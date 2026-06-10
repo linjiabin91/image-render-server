@@ -1,9 +1,18 @@
-import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
 import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
-import {StaticCanvas, FabricImage, getFabricDocument, setEnv, getEnv} from 'fabric/node';
+import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas} from 'fabric/node';
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync, statSync} from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    statSync,
+    unlinkSync,
+    writeFileSync
+} from 'node:fs';
 import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {LRUCache} from 'lru-cache';
@@ -21,9 +30,13 @@ const cleanupTimer = setInterval(() => {
         const now = Date.now();
         for (const file of readdirSync(SHARED_CACHE_DIR)) {
             const fp = resolve(SHARED_CACHE_DIR, file);
-            try { if (statSync(fp).mtimeMs < now - SHARED_CACHE_TTL) unlinkSync(fp); } catch { /* ignore */ }
+            try {
+                if (statSync(fp).mtimeMs < now - SHARED_CACHE_TTL) unlinkSync(fp);
+            } catch { /* ignore */
+            }
         }
-    } catch { /* ignore */ }
+    } catch { /* ignore */
+    }
 }, 1000 * 60 * 5);
 if (cleanupTimer.unref) cleanupTimer.unref();
 
@@ -39,11 +52,14 @@ const loadImageWithCache = async (url: string): Promise<any> => {
         try {
             const buf = readFileSync(cp);
             const img = await loadImage(buf);
-            (img as any).naturalWidth = img.width;
-            (img as any).naturalHeight = img.height;
             imageCache.set(url, img);
             return img;
-        } catch { try { unlinkSync(cp); } catch { /* ignore */ } }
+        } catch {
+            try {
+                unlinkSync(cp);
+            } catch { /* ignore */
+            }
+        }
     }
 
     const timeout = Number(process.env.IMAGE_FETCH_TIMEOUT) || 10_000;
@@ -53,11 +69,16 @@ const loadImageWithCache = async (url: string): Promise<any> => {
 
     const tmp = cp + '.' + process.pid;
     writeFileSync(tmp, buf);
-    try { renameSync(tmp, cp); } catch { try { unlinkSync(tmp); } catch { /* ignore */ } }
+    try {
+        renameSync(tmp, cp);
+    } catch {
+        try {
+            unlinkSync(tmp);
+        } catch { /* ignore */
+        }
+    }
 
     const img = await loadImage(buf);
-    (img as any).naturalWidth = img.width;
-    (img as any).naturalHeight = img.height;
     imageCache.set(url, img);
     return img;
 };
@@ -95,12 +116,20 @@ const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl:
 const patchEl = (el: any) => {
     if (!el.getAttribute) {
         el.getAttribute = (n: string) => n === 'dir' ? 'ltr' : null;
-        el.setAttribute = () => {};
-        el.removeAttribute = () => {};
+        el.setAttribute = () => {
+        };
+        el.removeAttribute = () => {
+        };
         el.hasAttribute = () => false;
-        el.addEventListener = () => {};
-        el.removeEventListener = () => {};
-        el.classList = {add: () => {}, remove: () => {}, contains: () => false, toggle: () => false};
+        el.addEventListener = () => {
+        };
+        el.removeEventListener = () => {
+        };
+        el.classList = {
+            add: () => {
+            }, remove: () => {
+            }, contains: () => false, toggle: () => false
+        };
         el.parentNode = null;
     }
     if (!el.style) Object.defineProperty(el, 'style', {value: {}, writable: true});
@@ -113,7 +142,7 @@ const proxyDoc = new Proxy(origDoc, {
         if (prop === 'createElement') {
             return (tagName: string, options?: any) => {
                 if (tagName.toLowerCase() === 'canvas') {
-                    return patchEl(new Canvas(1, 1, {gpu: false} as any));
+                    return patchEl(new Canvas(1, 1));
                 }
                 return Reflect.get(target, prop, receiver)(tagName, options);
             };
@@ -174,12 +203,22 @@ FabricImage.fromURL = ((url: string, callback?: (img?: FabricImage) => void, img
 // ── 类型 ──────────────────────────────────────────────────────────────────
 
 export interface FabricObject {
-    type: string; id?: string; name?: string; src?: string; text?: string;
+    type: string;
+    id?: string;
+    name?: string;
+    src?: string;
+    text?: string;
+
     [key: string]: unknown;
 }
+
 export interface FabricTemplateJson {
-    version: string; background?: string; objects: FabricObject[];
-    clipPath?: Record<string, unknown>; backgroundImage?: Record<string, unknown>;
+    version: string;
+    background?: string;
+    objects: FabricObject[];
+    clipPath?: Record<string, unknown>;
+    backgroundImage?: Record<string, unknown>;
+
     [key: string]: unknown;
 }
 
@@ -192,7 +231,9 @@ export class FabricEngine implements Engine {
     static #POOL_MAX = 10;
     #ready = false;
 
-    async init(): Promise<void> { this.#ready = true; }
+    async init(): Promise<void> {
+        this.#ready = true;
+    }
 
     async render(params: {
         options: RenderOptions;
@@ -216,7 +257,10 @@ export class FabricEngine implements Engine {
         perf.mark("preload");
 
         // (c) 渲染
-        const cacheKey = createHash('md5').update(JSON.stringify({options: params.options, templateJson: params.templateJson})).digest('hex');
+        const cacheKey = createHash('md5').update(JSON.stringify({
+            options: params.options,
+            templateJson: params.templateJson
+        })).digest('hex');
         const fc = this.#getCanvas(pw, ph, cacheKey);
 
         if (fc.getObjects().length > 0) {
@@ -228,10 +272,10 @@ export class FabricEngine implements Engine {
         perf.mark("fabric");
 
         // (d) 编码输出
-        const skCanvas = (fc as unknown as {lowerCanvasEl: any}).lowerCanvasEl;
+        const skCanvas = (fc as unknown as { lowerCanvasEl: any }).lowerCanvasEl;
 
         let result: Buffer;
-        if (format === "png" ) {
+        if (format === "png") {
             // PNG因为无法控制压缩率导致必须手动采样再压缩才会更快，因此先用 raw buffer + @napi-rs/image
             const pixels = skCanvas.toBufferSync("raw");
             perf.mark("pixels");
@@ -240,7 +284,7 @@ export class FabricEngine implements Engine {
             perf.mark("encode");
         } else {
             // 其他格式：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
-            result = skCanvas.toBufferSync(format, {quality: quantity/100} as any);
+            result = skCanvas.toBufferSync(format, {quality: quantity / 100}) as Buffer;
             perf.mark("pixels+encode");
         }
 
@@ -249,7 +293,13 @@ export class FabricEngine implements Engine {
     }
 
     destroy(): void {
-        for (const c of this.#pool.values()) { c.clear(); try { c.dispose(); } catch { /* ignore */ } }
+        for (const c of this.#pool.values()) {
+            c.clear();
+            try {
+                c.dispose();
+            } catch { /* ignore */
+            }
+        }
         this.#pool.clear();
         this.#ready = false;
     }
@@ -278,16 +328,16 @@ export class FabricEngine implements Engine {
      * @param resolvedJson - 变量替换后的模板 JSON
      */
     #smartUpdate(skCanvas: StaticCanvas, resolvedJson: FabricTemplateJson): void {
-        const existing = skCanvas.getObjects();
+        const existing = skCanvas.getObjects() as unknown as FabricObjectLike[];
         for (const obj of resolvedJson.objects) {
             if (!obj.id) continue;
-            const target = existing.find((o: any) => o.id === obj.id);
+            const target = existing.find((o) => o.id === obj.id);
             if (!target) continue;
             const type = (obj.type ?? '').toLowerCase();
             if (type.includes('text')) {
-                (target as any).set('text', obj.text ?? '');
+                target.set('text', obj.text ?? '');
             } else if (type === 'image') {
-                (target as any).set('src', obj.src ?? '');
+                target.set('src', obj.src ?? '');
             }
         }
         skCanvas.renderAll();
@@ -338,10 +388,14 @@ export class FabricEngine implements Engine {
         if (this.#pool.size >= FabricEngine.#POOL_MAX) {
             const k = this.#pool.keys().next().value!;
             const o = this.#pool.get(k)!;
-            o.clear(); try { o.dispose(); } catch { /* ignore */ }
+            o.clear();
+            try {
+                o.dispose();
+            } catch { /* ignore */
+            }
             this.#pool.delete(k);
         }
-        const raw = patchEl(new Canvas(w, h, {gpu: false} as any));
+        const raw = patchEl(new Canvas(w, h));
         const fc = new StaticCanvas(raw, {width: w, height: h, renderOnAddRemove: false});
         this.#pool.set(key, fc);
         return fc;
@@ -349,9 +403,20 @@ export class FabricEngine implements Engine {
 
 }
 
+/** Fabric 对象最小接口 — 用于 smartUpdate 避免 as any */
+interface FabricObjectLike {
+    id?: string;
+
+    set(key: string, value: unknown): void;
+
+    set(options: Record<string, unknown>): void;
+}
+
 function collectImageUrls(j: FabricTemplateJson): string[] {
     const s = new Set<string>();
-    for (const o of j.objects) { if (o.type === "image" && o.src) s.add(o.src); }
+    for (const o of j.objects) {
+        if (o.type === "image" && o.src) s.add(o.src);
+    }
     if (j.backgroundImage?.src) s.add(j.backgroundImage.src as string);
     return [...s];
 }

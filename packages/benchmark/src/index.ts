@@ -210,7 +210,7 @@ async function runBenchmark(args: CliArgs): Promise<void> {
         return;
       }
 
-      printResults(result, args);
+      printResults(result);
       resolvePromise();
     });
 
@@ -223,7 +223,7 @@ async function runBenchmark(args: CliArgs): Promise<void> {
 /*  结果输出                                                           */
 /* ------------------------------------------------------------------ */
 
-function printResults(result: Result, args: CliArgs): void {
+function printResults(result: Result): void {
   const { requests, latency, throughput, errors, timeouts, non2xx } = result;
 
   // 收集有值的状态码分布
