@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    canvas#renderCanvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<script src="fabric/7.4.0/fabric.min.js"></script>
+<script>
+/**
+ * fabric 7.4.0 渲染页面入口
+ *
+ * 接收 {options, templateJson, cacheKey}，使用 fabric 7 StaticCanvas 渲染。
+ * 首次调用或 cacheKey 变更时全量 loadFromJSON；
+ * 相同 cacheKey 时走增量更新（dirty region），跳过已渲染对象的重建。
+ *
+ * @param {Object} params
+ * @param {Object} params.options - 渲染配置 {width, height, pixelRatio, ...}
+ * @param {Object} params.templateJson - 变量替换后的 Fabric JSON
+ * @param {string} params.cacheKey - 模板 MD5，用于增量更新判断
+ */
+
+// ── CSS 约束修正 ──────────────────────────────────────────────────────────
+
+function normalizeImageOptions(obj, imgEl) {
+  if (!obj || !imgEl) return;
+  var elemW = imgEl.naturalWidth || imgEl.width || 0;
+  var elemH = imgEl.naturalHeight || imgEl.height || 0;
+  if (elemW === 0 || elemH === 0) return;
+  var optW = Number(obj.width) || 0;
+  var optH = Number(obj.height) || 0;
+  if (optW === 0 || optH === 0) return;
+  var scaleX = Number(obj.scaleX) || 1;
+  var scaleY = Number(obj.scaleY) || 1;
+  if (optW < elemW * 0.9 && optH < elemH * 0.9 && Math.abs(scaleX - scaleY) / Math.max(scaleX, scaleY) < 0.01) {
+    var displayW = optW * scaleX;
+    var displayH = optH * scaleY;
+    obj.width = elemW;
+    obj.height = elemH;
+    obj.scaleX = displayW / elemW;
+    obj.scaleY = displayH / elemH;
+  }
+}
+
+// ── Fabric 7 FabricImage.fromObject 拦截 ───────────────────────────────────
+// 强制 crossOrigin: "anonymous" 避免 canvas 被跨域污染
+
+(function () {
+  var origFromObject = fabric.FabricImage.fromObject;
+  fabric.FabricImage.fromObject = async function (obj) {
+    var object = fabric.util.object.clone(obj);
+    // fabric 7 的 loadImage 返回 Promise<HTMLImageElement>
+    try {
+      var img = await fabric.util.loadImage(object.src, { crossOrigin: 'anonymous' });
+      if (!img) {
+        return origFromObject ? origFromObject.call(this, object) : null;
+      }
+      normalizeImageOptions(object, img);
+      return new fabric.FabricImage(img, object);
+    } catch (e) {
+      return origFromObject ? origFromObject.call(this, object) : null;
+    }
+  };
+})();
+
+/** @type {fabric.StaticCanvas|null} */
+var _canvas = null;
+/** @type {string|null} */
+var _cacheKey = null;
+
+async function draw(params) {
+  var options = params.options;
+  var templateJson = params.templateJson;
+  var cacheKey = params.cacheKey;
+  var pixelRatio = options.pixelRatio || 1;
+  var width = Math.ceil(options.width * pixelRatio);
+  var height = Math.ceil(options.height * pixelRatio);
+
+  // ── 1. 初始化/调整画布 ──────────────────────────────────────────
+  var canvasEl = document.getElementById('renderCanvas');
+  canvasEl.width = width;
+  canvasEl.height = height;
+  canvasEl.style.width = options.width + 'px';
+  canvasEl.style.height = options.height + 'px';
+
+  if (!_canvas) {
+    _canvas = new fabric.StaticCanvas(canvasEl, {
+      width: width,
+      height: height,
+      enableRetinaScaling: false,
+      imageSmoothingEnabled: true,
+      renderOnAddRemove: false,
+    });
+  } else {
+    _canvas.setDimensions({ width: width, height: height });
+  }
+
+  // ── 2. 加载/更新内容 ──────────────────────────────────────────
+  var objectsLen = _canvas.getObjects().length;
+  if (cacheKey && cacheKey === _cacheKey && objectsLen > 0) {
+    console.log('[draw] CACHE HIT', {cacheKey: cacheKey, _cacheKey: _cacheKey, objects: objectsLen});
+    smartUpdate(_canvas, templateJson);
+  } else {
+    console.log('[draw] CACHE MISS', {cacheKey: cacheKey, _cacheKey: _cacheKey, objects: objectsLen, reason: cacheKey ? (cacheKey === _cacheKey ? 'no objects' : 'key mismatch') : 'no key'});
+    _canvas.clear();
+    await loadJson(_canvas, templateJson);
+    _cacheKey = cacheKey;
+  }
+
+  _canvas.renderAll();
+  await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+  return null;
+}
+
+/**
+ * fabric 7 的 loadFromJSON 返回 Promise，无需回调包装
+ */
+function loadJson(canvas, json) {
+  return canvas.loadFromJSON(json).then(function () {
+    return new Promise(function (resolve) { requestAnimationFrame(resolve); });
+  });
+}
+
+/**
+ * 增量更新 — 按 id/name 匹配画布上已有对象，仅更新变更属性
+ */
+function smartUpdate(canvas, json) {
+  var objects = canvas.getObjects();
+  var newObjects = json.objects || [];
+  var updated = 0;
+
+  for (var i = 0; i < newObjects.length; i++) {
+    var obj = newObjects[i];
+    var target = objects[i];
+    if (!target) continue;
+
+    var targetId = target.id || target.name;
+    if (obj.id && targetId && obj.id !== targetId) continue;
+
+    var type = (obj.type || '').toLowerCase();
+
+    if (type.includes('text')) {
+      if (obj.text !== target.text) {
+        console.log('[smartUpdate] text changed', {id: obj.id, from: target.text, to: obj.text});
+        target.set('text', obj.text || '');
+        target.set('dirty', true);
+        updated++;
+      }
+    } else if (type === 'image' && obj.src) {
+      if (obj.src !== target.getSrc()) {
+        console.log('[smartUpdate] image src changed', {id: obj.id, from: (target.getSrc() || '').slice(0, 60), to: (obj.src || '').slice(0, 60)});
+        // fabric 7 setSrc 返回 Promise
+        target.setSrc(obj.src).then(function () {
+          target.set('dirty', true);
+        });
+        updated++;
+      }
+    }
+  }
+  console.log('[smartUpdate] done', {total: objects.length, updated});
+}
+
+// 优化 flags
+fabric.StaticCanvas.prototype.enableRetinaScaling = false;
+</script>
+</body>
+</html>
