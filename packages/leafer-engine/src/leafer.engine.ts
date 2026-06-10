@@ -89,24 +89,29 @@ export class LeaferEngine implements Engine {
         }
         leafer.start();
         perf.mark("leafer");
-        const ctx = (leafer.view as any).getContext("2d") as CanvasRenderingContext2D;
-        const imageData = ctx.getImageData(0, 0, pw, ph);
-        perf.mark("readPixels");
 
-        // (c) 编码输出
-        const pixels = Transformer.fromRgbaPixels(imageData.data, pw, ph);
-        perf.mark("fromRgbaPixels");
-        let buffer;
-        if (format === "jpeg") {
-            buffer = pixels.jpegSync(quantity);
+        let result: Buffer;
+        if (format === "png") {
+            // PNG：走 getImageData + @napi-rs/image 以获得压缩等级控制
+            const ctx = (leafer.view as any).getContext("2d") as CanvasRenderingContext2D;
+            const imageData = ctx.getImageData(0, 0, pw, ph);
+            perf.mark("readPixels");
+            const tx = Transformer.fromRgbaPixels(imageData.data, pw, ph);
+            result = tx.pngSync({ compressionType: CompressionType.Default });
+            perf.mark("encode");
         } else {
-            buffer = pixels.pngSync({ compressionType: CompressionType.Default });
+            // 其他格式：leafer 原生导出，跳过 getImageData + @napi-rs/image 步骤
+            const leaferFormat = format === 'jpeg' ? 'jpg' : format;
+            const exportResult = await (leafer as any).export(leaferFormat, { quality: quantity });
+            const data = (exportResult as any).data;
+            result = typeof data === 'string'
+                ? Buffer.from(data.split(',')[1] || data, 'base64')
+                : Buffer.from(data);
+            perf.mark("export+encode");
         }
-        perf.mark("encode");
 
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
-
-        return buffer;
+        return result;
     }
 
     /** 简易性能计时器 */
