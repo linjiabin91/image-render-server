@@ -19,7 +19,7 @@ COPY packages/fabric5-engine/package.json packages/fabric5-engine/
 COPY packages/fabric-engine/package.json packages/fabric-engine/
 COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
-RUN npm ci
+RUN npm install
 
 COPY tsconfig.json .
 COPY packages/core/src packages/core/src
