@@ -5,13 +5,13 @@
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && rm -rf dist/pages && cp -r src/pages dist/",
     "start": "npm run build && node dist/server.js"
   },
   "dependencies": {
     "@render-server/core": "*",
     "@render-server/server": "*",
-    "playwright": "^1.52.0"
+    "playwright-core": "^1.60.0"
   },
   "devDependencies": {
     "typescript": "^6.0.3"

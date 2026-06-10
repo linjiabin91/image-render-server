@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    canvas#renderCanvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<script src="fabric/5.5.2/fabric.min.js"></script>
+<script>
+/**
+ * fabric5 渲染页面入口
+ *
+ * 接收 {options, templateJson, cacheKey}，使用 fabric 5.5.2 StaticCanvas 渲染。
+ * 首次调用或 cacheKey 变更时全量 loadFromJSON；
+ * 相同 cacheKey 时走增量更新（dirty region），跳过已渲染对象的重建。
+ *
+ * 要求：
+ * - 使用 fabric.StaticCanvas（轻量化，无交互）
+ * - canvas 固定 id="renderCanvas"
+ * - 增量更新时仅更新 text/src 变更对象，不重建画布
+ *
+ * @param {Object} params
+ * @param {Object} params.options - 渲染配置 {width, height, pixelRatio, ...}
+ * @param {Object} params.templateJson - 变量替换后的 Fabric JSON
+ * @param {string} params.cacheKey - 模板 MD5，用于增量更新判断
+ */
+
+// ── CSS 约束修正 ──────────────────────────────────────────────────────────
+
+/**
+ * 修正图片大小约束：当模板设置的 width/height 远小于图片自然尺寸时，
+ * 将图片设为自然分辨率，通过 scaleX/scaleY 保持显示大小不变。
+ *
+ * 避免浏览器使用低分辨率 CSS 尺寸渲染大图导致的锯齿/模糊。
+ *
+ * @param {Object} obj - 图片对象的 JSON 描述
+ * @param {HTMLImageElement} imgEl - 已加载的图片元素
+ */
+function normalizeImageOptions(obj, imgEl) {
+  if (!obj || !imgEl) return;
+  var elemW = imgEl.naturalWidth || imgEl.width || 0;
+  var elemH = imgEl.naturalHeight || imgEl.height || 0;
+  if (elemW === 0 || elemH === 0) return;
+
+  var optW = Number(obj.width) || 0;
+  var optH = Number(obj.height) || 0;
+  if (optW === 0 || optH === 0) return;
+
+  var scaleX = Number(obj.scaleX) || 1;
+  var scaleY = Number(obj.scaleY) || 1;
+
+  // 仅当模板设定了远小于自然尺寸的宽高，且 scaleX/Y 相近（非故意变形）时修正
+  if (optW < elemW * 0.9 && optH < elemH * 0.9 && Math.abs(scaleX - scaleY) / Math.max(scaleX, scaleY) < 0.01) {
+    var displayW = optW * scaleX;
+    var displayH = optH * scaleY;
+    obj.width = elemW;
+    obj.height = elemH;
+    obj.scaleX = displayW / elemW;
+    obj.scaleY = displayH / elemH;
+  }
+}
+
+// ── Fabric Image.fromObject 拦截 ───────────────────────────────────────────
+//
+// 拦截 fabric.Image.fromObject，在图片加载完成后应用 normalizeImageOptions，
+// 确保 loadFromJSON 加载图片时自动修正 CSS 约束导致的低分辨率问题。
+
+(function () {
+  fabric.Image.fromObject = function (obj, callback) {
+    // clone 避免修改传入对象
+    var object = fabric.util.object.clone(obj);
+    // fabric 5.5.2 的 fromObject 内部调 fabric.util.loadImage
+    fabric.util.loadImage(object.src, function (img, isError) {
+      if (isError || !img) {
+        callback && callback(null, true);
+        return;
+      }
+      normalizeImageOptions(object, img);
+      var imgInstance = new fabric.Image(img, object);
+      callback && callback(imgInstance, false);
+    }, null, object.crossOrigin);
+  };
+})();
+
+/** @type {fabric.StaticCanvas|null} */
+let _canvas = null;
+/** @type {string|null} */
+let _cacheKey = null;
+
+async function draw(params) {
+  const { options, templateJson, cacheKey } = params;
+  const pixelRatio = options.pixelRatio || 1;
+  const width = Math.ceil(options.width * pixelRatio);
+  const height = Math.ceil(options.height * pixelRatio);
+
+  // ── 1. 初始化/调整画布 ──────────────────────────────────────────
+  const canvasEl = document.getElementById('renderCanvas');
+
+  // 物理像素尺寸（含 pixelRatio）
+  canvasEl.width = width;
+  canvasEl.height = height;
+
+  // CSS 显示尺寸（逻辑像素）
+  canvasEl.style.width = (options.width) + 'px';
+  canvasEl.style.height = (options.height) + 'px';
+
+  if (!_canvas) {
+    // 首次：创建 StaticCanvas
+    _canvas = new fabric.StaticCanvas(canvasEl, {
+      renderOnAddRemove: false,
+      width,
+      height,
+    });
+  } else {
+    // 复用：更新尺寸
+    _canvas.setDimensions({ width, height });
+  }
+
+  // ── 2. 加载/更新内容 ──────────────────────────────────────────
+  if (cacheKey && cacheKey === _cacheKey && _canvas.getObjects().length > 0) {
+    // 同一 cacheKey → 增量更新（dirty region）
+    smartUpdate(_canvas, templateJson);
+  } else {
+    // 不同 cacheKey 或首次 → 全量加载
+    _canvas.clear();
+    await loadJson(_canvas, templateJson);
+    _cacheKey = cacheKey;
+  }
+
+  _canvas.renderAll();
+
+  // 等待浏览器完成本次 paint 周期，确保 canvas 内容已刷新到屏幕
+  // 否则 page.screenshot() 可能捕获到未完成渲染的空白画布
+  await new Promise(function (resolve) {
+    // requestAnimationFrame 确保 paint 完成
+    requestAnimationFrame(function () {
+      // 额外 setTimeout(0) 用于等待 browser compositing
+      setTimeout(resolve, 50);
+    });
+  });
+}
+
+/**
+ * 全量加载 JSON 到画布
+ *
+ * loadFromJSON 回调后等待一个 paint frame，
+ * 引擎侧还额外等待了 networkidle 做双重保障。
+ *
+ * @param {fabric.StaticCanvas} canvas
+ * @param {Object} json - Fabric JSON
+ * @returns {Promise<void>}
+ */
+function loadJson(canvas, json) {
+  return new Promise(function (resolve, reject) {
+    try {
+      canvas.loadFromJSON(json, function () {
+        requestAnimationFrame(resolve);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * 增量更新 — 按 id/name 匹配画布上已有对象，仅更新变更属性
+ *
+ * 匹配策略：
+ * - 优先按 id 匹配（templateJson 中 objects[i].id 与 canvas 对象 id/name 对比）
+ * - 再按索引位置兜底
+ *
+ * 更新策略（dirty region）：
+ * - text 类型 → 只更新 text 属性
+ * - image 类型 → 只更新 src 属性（触发浏览器重新加载图片）
+ * - 其他类型 → 跳过（结构不变时无需更新）
+ *
+ * @param {fabric.StaticCanvas} canvas
+ * @param {Object} json - 变量替换后的 Fabric JSON
+ */
+function smartUpdate(canvas, json) {
+  const objects = canvas.getObjects();
+  const newObjects = json.objects || [];
+
+  for (let i = 0; i < newObjects.length; i++) {
+    const obj = newObjects[i];
+    const target = objects[i];
+
+    if (!target) continue;
+
+    // 按 id 匹配验证（索引位置一致但 id 不同时视为不同对象，不更新）
+    const targetId = target.id || target.name;
+    if (obj.id && targetId && obj.id !== targetId) continue;
+
+    const type = (obj.type || '').toLowerCase();
+
+    if (type.includes('text')) {
+      // 文本变更：只更新 text 内容，保留其他样式属性
+      if (obj.text !== target.text) {
+        target.set('text', obj.text || '');
+        target.set('dirty', true);
+      }
+    } else if (type === 'image' && obj.src) {
+      // 图片 src 变更：更新源地址
+      if (obj.src !== target.getSrc()) {
+        target.setSrc(obj.src, () => {
+          target.set('dirty', true);
+        });
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

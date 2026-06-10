@@ -5,7 +5,7 @@
  * 调用页面的 draw(json) 方法、截图输出。
  * 每个 Worker 持有浏览器连接和页面池，页面按模板 MD5 复用。
  */
-import {type Browser, type BrowserContext, type Page} from "playwright";
+import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
 import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
@@ -22,35 +22,48 @@ const PAGE_IDLE_TIMEOUT = 1000 * 60 * 5;
 /** 等待 draw 完成超时（毫秒） */
 const DRAW_TIMEOUT = 30_000;
 
+/** Playwright 支持的截图格式（webp 不支持，降级为 png） */
+type ScreenshotType = "png" | "jpeg";
+
 /** 默认引擎标识 */
 const DEFAULT_ENGINE = "leafer";
 
 /** 默认版本号 */
 const DEFAULT_VERSION = "1";
 
-// ── 类型 ──────────────────────────────────────────────────────────────────
+// ── 内部类型 ──────────────────────────────────────────────────────────────
 
 /** 池中页面状态 */
 interface PoolEntry {
-  /** Playwright Page 实例 */
   page: Page;
-  /** 是否被任务锁定 */
   locked: boolean;
-  /** 最近一次释放时间戳 */
   lastReleased: number;
+}
+
+// ── 工具函数 ──────────────────────────────────────────────────────────────
+
+/**
+ * 将 ImageFormat 标准化为 Playwright 接受的截图类型
+ *
+ * Playwright page.screenshot() 的 type 只接受 "png" | "jpeg"，
+ * 不接受 "jpg" 或 "webp"。此处统一映射，webp 降级为 png。
+ *
+ * @param format - 输入格式
+ * @returns Playwright 兼容的截图类型
+ */
+function toScreenshotType(format: string): ScreenshotType {
+  if (format === "jpg") return "jpeg";
+  if (format === "jpeg") return "jpeg";
+  return "png";
 }
 
 // ── 引擎 ──────────────────────────────────────────────────────────────────
 
 export class PlaywrightEngine implements Engine {
-  /** Playwright 浏览器实例 */
   #browser!: Browser;
-  /** 浏览器上下文（单 Worker 一个 context） */
   #context!: BrowserContext;
-  /** 页面池：key 为模板 MD5 */
   #pagePool = new Map<string, PoolEntry>();
   #initialized = false;
-  /** 页面文件所在目录 */
   #pagesDir!: string;
 
   /**
@@ -65,11 +78,10 @@ export class PlaywrightEngine implements Engine {
    */
   async init(): Promise<void> {
     this.#context = await this.#browser.newContext({
-      viewport: null, // 由页面内容决定视口
+      viewport: {width: 4096, height: 4096},
       deviceScaleFactor: 1,
     });
 
-    // 解析 pages 目录路径
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     this.#pagesDir = join(__dirname, "pages");
@@ -83,7 +95,7 @@ export class PlaywrightEngine implements Engine {
    * 1. 变量替换
    * 2. 计算 pool key（模板 MD5）
    * 3. 获取/创建页面
-   * 4. 导航到 HTML 页面
+   * 4. 导航到 HTML 页面（如 URL 不同）
    * 5. 调用 draw(json)
    * 6. 截图
    * 7. 释放页面
@@ -116,42 +128,45 @@ export class PlaywrightEngine implements Engine {
     perf.mark("acquirePage");
 
     try {
-      // (4) 计算页面路径
+      // (4) 计算页面路径: {engine}_{version}.html，version 为空时直接 {engine}.html
       const engine = params.options.engine ?? DEFAULT_ENGINE;
       const version = params.options.version ?? DEFAULT_VERSION;
-      const pageFileName = `${engine}_${version}.html`;
+      const pageFileName = version ? `${engine}_${version}.html` : `${engine}.html`;
       const pagePath = join(this.#pagesDir, pageFileName);
       const pageUrl = `file://${pagePath}`;
 
-      // (5) 导航到页面
-      await entry.page.goto(pageUrl, {waitUntil: "networkidle", timeout: DRAW_TIMEOUT});
+      // (5) 导航：仅在 URL 不同时 reload，复用已加载页面
+      if (entry.page.url() !== pageUrl) {
+        await entry.page.goto(pageUrl, {waitUntil: "load", timeout: DRAW_TIMEOUT});
+      }
       perf.mark("goto");
 
-      // (6) 调用 draw(json)
-      await entry.page.evaluate(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        (json: Record<string, unknown>) => (window as unknown as Record<string, unknown>).draw(json),
-        resolvedJson,
-      );
+      // (6) 调用 draw({options, templateJson, cacheKey})
+      //     模板 JSON 已完成变量替换；cacheKey 用于页面内增量更新判断
+      await entry.page.evaluate((data) => {
+        (window as unknown as Record<string, (data: unknown) => void>).draw(data);
+      }, {options: params.options, templateJson: resolvedJson, cacheKey: key});
+      // draw 完成后再等待网络空闲 + 一次 RAF，确保远程图片加载完毕并完成 paint
+      await entry.page.waitForLoadState("networkidle", {timeout: DRAW_TIMEOUT});
       perf.mark("draw");
 
       // (7) 截图
-      const {format, quantity, pixelRatio = 1} = params.options;
-      const {width, height} = params.options;
+      const {format, quantity, pixelRatio = 1, width, height} = params.options;
       const pw = Math.ceil(width * pixelRatio);
       const ph = Math.ceil(height * pixelRatio);
 
-      const screenshotOptions: Record<string, unknown> = {
-        type: format === "jpeg" ? "jpeg" : format,
+      const screenshotType = toScreenshotType(format);
+      const screenshotOpts: PageScreenshotOptions = {
+        type: screenshotType,
         clip: {x: 0, y: 0, width: pw, height: ph},
       };
 
-      // quality 仅对 jpeg/webp 有效
-      if (format === "jpeg" || format === "jpg" || format === "webp") {
-        screenshotOptions.quality = quantity;
+      // quality 仅对 jpeg 有效，设置到 png 会抛错
+      if (screenshotType === "jpeg") {
+        screenshotOpts.quality = quantity;
       }
 
-      const buffer = await entry.page.screenshot(screenshotOptions as Parameters<Page["screenshot"]>[0]);
+      const buffer = await entry.page.screenshot(screenshotOpts);
       perf.mark("screenshot");
 
       logger.info({steps: perf.steps(), tree: perf.snapshot(), format, size: `${pw}x${ph}`}, "render");
@@ -168,10 +183,10 @@ export class PlaywrightEngine implements Engine {
    */
   destroy(): void {
     for (const [, entry] of this.#pagePool) {
-      entry.page.close().catch(() => { /* 忽略关闭错误 */ });
+      entry.page.close().catch(() => { /* ignore */ });
     }
     this.#pagePool.clear();
-    this.#context?.close().catch(() => { /* 忽略关闭错误 */ });
+    this.#context?.close().catch(() => { /* ignore */ });
     this.#initialized = false;
   }
 
@@ -179,10 +194,6 @@ export class PlaywrightEngine implements Engine {
 
   /**
    * 变量替换：将 JSON 字符串中的 {{key}} 替换为变量值
-   *
-   * @param json - 模板 JSON
-   * @param variables - 变量映射
-   * @returns 替换后的 JSON
    */
   #resolveVariables(
     json: Record<string, unknown>,
@@ -198,42 +209,47 @@ export class PlaywrightEngine implements Engine {
    *
    * 分配策略：
    * - 池中有未锁定页面且 key 匹配 → 返回该页面
-   * - 池中 key 匹配但锁定 → 轮询等待（Piscina Worker 串行执行时不会发生）
+   * - 池中 key 匹配但锁定 → 轮询等待（Piscina Worker 串行执行时通常不会发生）
    * - 无匹配且未超限 → 创建新页面
-   * - 超限 → 淘汰最久未使用的页面
+   * - 超限且存在未锁页面 → 淘汰最早未锁定的
+   * - 超限且所有页面锁定 → 仍创建新页面（池临时超出上限，后续清理）
    *
    * @param key - 模板 MD5
    * @returns 池条目（页面已锁定）
    */
   async #acquirePage(key: string): Promise<PoolEntry> {
-    // 1. 清理过期页面（保留当前 key 的条目，避免正在等待的页面被误删）
     this.#evictIdlePages(key);
 
-    // 2. 查找匹配且未锁定的页面
     const existing = this.#pagePool.get(key);
     if (existing && !existing.locked) {
-      existing.locked = true;
-      return existing;
+      if (existing.page.isClosed()) {
+        this.#pagePool.delete(key);
+      } else {
+        existing.locked = true;
+        return existing;
+      }
     }
 
-    // 3. key 匹配但被锁定（理论上 Piscina 串行不会发生）
     if (existing?.locked) {
-      // 轮询等待锁释放
       return await this.#waitForPage(key);
     }
 
-    // 4. 页面池超限，淘汰最早未锁定的
     if (this.#pagePool.size >= POOL_MAX) {
       this.#evictOne();
     }
 
-    // 5. 创建新页面
     const page = await this.#context.newPage();
-    const entry: PoolEntry = {
-      page,
-      locked: true,
-      lastReleased: Date.now(),
-    };
+
+    // 注册页面崩溃和错误监听，自动从池中移除已崩溃页面
+    page.on("crash", () => {
+      logger.warn({key: key.slice(0, 8)}, "page crashed, removing from pool");
+      this.#pagePool.delete(key);
+    });
+    page.on("pageerror", (err: Error) => {
+      logger.warn({err, key: key.slice(0, 8)}, "page error");
+    });
+
+    const entry: PoolEntry = {page, locked: true, lastReleased: Date.now()};
     this.#pagePool.set(key, entry);
     return entry;
   }
@@ -273,7 +289,7 @@ export class PlaywrightEngine implements Engine {
     for (const [key, entry] of this.#pagePool) {
       if (key === preserveKey) continue;
       if (!entry.locked && now - entry.lastReleased > PAGE_IDLE_TIMEOUT) {
-        entry.page.close().catch(() => { /* 忽略关闭错误 */ });
+        entry.page.close().catch(() => { /* ignore */ });
         this.#pagePool.delete(key);
       }
     }
@@ -296,10 +312,8 @@ export class PlaywrightEngine implements Engine {
 
     if (oldestKey) {
       const entry = this.#pagePool.get(oldestKey)!;
-      entry.page.close().catch(() => { /* 忽略关闭错误 */ });
+      entry.page.close().catch(() => { /* ignore */ });
       this.#pagePool.delete(oldestKey);
     }
   }
 }
-
-export type {PoolEntry};

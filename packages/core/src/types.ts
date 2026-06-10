@@ -35,4 +35,8 @@ export interface RenderOptions {
   compressLevel: CompressLevel;
   /** 像素倍率（默认 1），2 表示 2x 高清输出 */
   pixelRatio?: number;
+  /** 渲染引擎标识（如 leafer、fabric5、playwright） */
+  engine?: string;
+  /** 引擎版本/模板版本 */
+  version?: string;
 }

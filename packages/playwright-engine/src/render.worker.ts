@@ -4,7 +4,7 @@
  * Piscina 自动调用本文件的 default export，Worker 常驻内存复用 PlaywrightEngine 实例。
  * Worker 启动时连接由 server.ts 启动的 Playwright 浏览器实例。
  */
-import {chromium} from "playwright";
+import {chromium} from "playwright-core";
 import type {RenderOptions} from "@render-server/core";
 import {PlaywrightEngine} from "./playwright.engine.js";
 

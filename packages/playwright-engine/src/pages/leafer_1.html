@@ -13,14 +13,17 @@
 /**
  * Playwright 渲染页面入口
  *
- * 页面通过 playwright-engine 的 page.evaluate('draw', json) 调用此函数。
+ * 页面通过 playwright-engine 的 page.evaluate('draw', {options, templateJson, cacheKey}) 调用此函数。
  * 第一版为空实现，用户可根据需要自定义渲染逻辑。
  *
- * @param {Object} json - 渲染模板 JSON
+ * @param {Object} params - 渲染参数
+ * @param {Object} params.options - 渲染配置
+ * @param {Object} params.templateJson - 变量替换后的模板 JSON
+ * @param {string} params.cacheKey - 模板 MD5（用于增量更新判断）
  */
-async function draw(json) {
+function draw(params) {
     // 用户自定义渲染逻辑
-    // 第一版为空实现
+    // 第一版为空实现 — 页面截图将输出空白画布
     return;
 }
 </script>
