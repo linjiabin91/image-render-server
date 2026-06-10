@@ -6,7 +6,7 @@
   "types": "dist/server.d.ts",
   "scripts": {
     "build": "tsc -b",
-    "start": "npm run build && LOG_PRETTY=true node dist/server.js"
+    "start": "LOG_PRETTY=true  npm run build && node dist/server.js"
   },
   "dependencies": {
     "@leafer-ui/node": "^2.1.4",

@@ -1,9 +1,10 @@
-import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
-import {Leafer, useCanvas} from "@leafer-ui/node";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
 import {CompressionType, Transformer} from '@napi-rs/image'
 import {createHash} from "node:crypto";
+import {IUI} from "@leafer-ui/interface";
 
 useCanvas('napi', napi) // must
 
@@ -84,20 +85,22 @@ export class LeaferEngine implements Engine {
         // (a) 变量替换
         const resolvedJson = resolveVariables(json, params.variables);
         perf.mark("resolve");
-
+        // MISS：预下载图片 + 全量重建
+        await this.#preloadImages(resolvedJson);
         // (b) 判断缓存命中
-        const cacheKey = createHash("md5").update(JSON.stringify({options: params.options, templateJson: json})).digest("hex");
-        const leafer = this.#getLeafer(pw, ph);
+        const cacheKey = createHash("md5").update(JSON.stringify({
+            options: params.options,
+            templateJson: json
+        })).digest("hex");
+        const leafer = this.#getLeafer(cacheKey, width, height);
         const prevKey = this.#cacheKeyMap.get(leafer);
         const isCacheHit = prevKey === cacheKey && leafer.children.length > 0;
 
         if (isCacheHit) {
             // HIT：跳过预下载和 clear，仅增量更新变化的属性
             this.#smartUpdate(leafer, resolvedJson);
-            leafer.forceRender();
+            leafer.renderer.renderAgain();
         } else {
-            // MISS：预下载图片 + 全量重建
-            await this.#preloadImages(resolvedJson);
             perf.mark("preload");
             leafer.clear();
             if (resolvedJson.children) {
@@ -120,7 +123,7 @@ export class LeaferEngine implements Engine {
         } else {
             // 其他格式：leafer 原生导出，跳过 getImageData + @napi-rs/image 步骤
             const leaferFormat = format === 'jpeg' ? 'jpg' : format;
-            const exportResult = await (leafer as any).export(leaferFormat, { quality: quantity });
+            const exportResult = await (leafer as any).export(leaferFormat, {quality: quantity});
             const data = (exportResult as any).data;
             result = typeof data === 'string'
                 ? Buffer.from(data.split(',')[1] || data, 'base64')
@@ -144,8 +147,8 @@ export class LeaferEngine implements Engine {
         this.#initialized = false;
     }
 
-    #getLeafer(width: number, height: number): Leafer {
-        const key = `${width}x${height}`;
+    #getLeafer(cacheKey: String, width: number, height: number): Leafer {
+        const key = `${cacheKey}`;
 
         // 命中了：移到末尾（最近使用），返回
         if (this.#leaferPool.has(key)) {
@@ -164,7 +167,7 @@ export class LeaferEngine implements Engine {
             this.#leaferPool.delete(oldestKey);
         }
 
-        const leafer = new Leafer({width, height});
+        const leafer = new Leafer({width: width, height: height, usePartRender: true});
         this.#leaferPool.set(key, leafer);
         return leafer;
     }
@@ -198,7 +201,7 @@ export class LeaferEngine implements Engine {
      * @param resolvedJson - 变量替换后的模板 JSON
      */
     #smartUpdate(leafer: Leafer, resolvedJson: LeaferTemplateJson): void {
-        this.#smartUpdateChildren(leafer.children as any[], resolvedJson.children ?? []);
+        this.#smartUpdateChildren(leafer.children || [], resolvedJson.children ?? []);
     }
 
     /**
@@ -209,29 +212,30 @@ export class LeaferEngine implements Engine {
      * @param existing - 现有的 Leafer 叶子节点数组
      * @param newChildren - 新的模板节点数组
      */
-    #smartUpdateChildren(existing: any[], newChildren: LeaferNode[]): void {
+    #smartUpdateChildren(existing: IUI[], newChildren: LeaferNode[]): void {
         const len = Math.min(existing.length, newChildren.length);
         for (let i = 0; i < len; i++) {
-            const target = existing[i];
+            const target = existing[i] as any;
             const node = newChildren[i];
 
             if (node.tag === "Text" && target.tag === "Text") {
                 if (target.text !== node.text) {
-                    target.set({text: node.text ?? ""});
+                    target.text = node.text;
                 }
             } else if (node.tag === "Image" && target.tag === "Image") {
                 if (target.url !== node.url) {
-                    target.set({url: node.url ?? ""});
+                    target.url = node.url
                 }
                 // 同时检查 fill.url（Image fill 场景）
+                const targetFill = (target.fill || {type: ''}) as any;
+                const fill = node.fill as any;
                 if (
                     node.fill &&
-                    typeof node.fill === "object" &&
-                    target.fill &&
-                    typeof target.fill === "object" &&
-                    target.fill.url !== node.fill.url
+                    fill.type === "image" &&
+                    targetFill.type === "image" &&
+                    targetFill.url !== fill.url
                 ) {
-                    target.set({fill: node.fill});
+                    targetFill.url = fill.url;
                 }
             }
 
