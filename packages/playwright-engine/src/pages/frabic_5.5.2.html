@@ -67,14 +67,16 @@ function normalizeImageOptions(obj, imgEl) {
 
 // ── Fabric Image.fromObject 拦截 ───────────────────────────────────────────
 //
-// 拦截 fabric.Image.fromObject，在图片加载完成后应用 normalizeImageOptions，
-// 确保 loadFromJSON 加载图片时自动修正 CSS 约束导致的低分辨率问题。
+// 拦截 fabric.Image.fromObject，强制 crossOrigin: "anonymous" 避免 canvas 被跨域污染，
+// 同时在图片加载完成后应用 normalizeImageOptions。
+// 注意：这要求图片服务器返回 Access-Control-Allow-Origin 头。
 
 (function () {
   fabric.Image.fromObject = function (obj, callback) {
     // clone 避免修改传入对象
     var object = fabric.util.object.clone(obj);
     // fabric 5.5.2 的 fromObject 内部调 fabric.util.loadImage
+    // 最后一个参数是 crossOrigin，强制 use 'anonymous' 使 canvas 可读
     fabric.util.loadImage(object.src, function (img, isError) {
       if (isError || !img) {
         callback && callback(null, true);
@@ -83,7 +85,7 @@ function normalizeImageOptions(obj, imgEl) {
       normalizeImageOptions(object, img);
       var imgInstance = new fabric.Image(img, object);
       callback && callback(imgInstance, false);
-    }, null, object.crossOrigin);
+    }, null, 'anonymous');
   };
 })();
 
@@ -109,6 +111,12 @@ async function draw(params) {
   canvasEl.style.width = (options.width) + 'px';
   canvasEl.style.height = (options.height) + 'px';
 
+  // 拦截 getContext 以注入 willReadFrequently（加速 getImageData）
+  var origGetContext = canvasEl.getContext.bind(canvasEl);
+  canvasEl.getContext = function(type, attrs) {
+    return origGetContext(type, Object.assign({willReadFrequently: true}, attrs));
+  };
+
   if (!_canvas) {
     // 首次：创建 StaticCanvas
     _canvas = new fabric.StaticCanvas(canvasEl, {
@@ -124,27 +132,34 @@ async function draw(params) {
   }
 
   // ── 2. 加载/更新内容 ──────────────────────────────────────────
-  if (cacheKey && cacheKey === _cacheKey && _canvas.getObjects().length > 0) {
-    // 同一 cacheKey → 增量更新（dirty region）
+  var objectsLen = _canvas.getObjects().length;
+  if (cacheKey && cacheKey === _cacheKey && objectsLen > 0) {
+    console.log('[draw] CACHE HIT', {cacheKey: cacheKey, _cacheKey: _cacheKey, objects: objectsLen});
     smartUpdate(_canvas, templateJson);
   } else {
-    // 不同 cacheKey 或首次 → 全量加载
+    console.log('[draw] CACHE MISS', {cacheKey: cacheKey, _cacheKey: _cacheKey, objects: objectsLen, reason: cacheKey ? (cacheKey === _cacheKey ? 'no objects' : 'key mismatch') : 'no key'});
     _canvas.clear();
     await loadJson(_canvas, templateJson);
     _cacheKey = cacheKey;
   }
 
   _canvas.renderAll();
+  await new Promise(function (resolve) { requestAnimationFrame(resolve); });
 
-  // 等待浏览器完成本次 paint 周期，确保 canvas 内容已刷新到屏幕
-  // 否则 page.screenshot() 可能捕获到未完成渲染的空白画布
-  await new Promise(function (resolve) {
-    // requestAnimationFrame 确保 paint 完成
-    requestAnimationFrame(function () {
-      // 额外 setTimeout(0) 用于等待 browser compositing
-      setTimeout(resolve, 50);
-    });
-  });
+  // 缓存命中时跳过昂贵的 getImageData（大画布下极慢），直接退回到截图
+  if (cacheKey && cacheKey === _cacheKey) {
+    return null;
+  }
+
+  // 首次全量：尝试读取原始像素返回 @napi-rs/image 编码（更精细的压缩控制）
+  try {
+    var ctx = _canvas.getContext();
+    if (!ctx) return null;
+    var imageData = ctx.getImageData(0, 0, width, height);
+    return { pixels: imageData.data, width: width, height: height };
+  } catch (e) {
+    return null;
+  }
 }
 
 /**
@@ -187,6 +202,7 @@ function loadJson(canvas, json) {
 function smartUpdate(canvas, json) {
   const objects = canvas.getObjects();
   const newObjects = json.objects || [];
+  let updated = 0;
 
   for (let i = 0; i < newObjects.length; i++) {
     const obj = newObjects[i];
@@ -194,35 +210,30 @@ function smartUpdate(canvas, json) {
 
     if (!target) continue;
 
-    // 按 id 匹配验证（索引位置一致但 id 不同时视为不同对象，不更新）
     const targetId = target.id || target.name;
     if (obj.id && targetId && obj.id !== targetId) continue;
 
     const type = (obj.type || '').toLowerCase();
 
     if (type.includes('text')) {
-      // 文本变更：只更新 text 内容，保留其他样式属性
       if (obj.text !== target.text) {
+        console.log('[smartUpdate] text changed', {id: obj.id, from: target.text, to: obj.text});
         target.set('text', obj.text || '');
         target.set('dirty', true);
+        updated++;
       }
     } else if (type === 'image' && obj.src) {
-      // 图片 src 变更：更新源地址
       if (obj.src !== target.getSrc()) {
+        console.log('[smartUpdate] image src changed', {id: obj.id, from: target.getSrc()?.slice(0,60), to: obj.src?.slice(0,60)});
         target.setSrc(obj.src, () => {
           target.set('dirty', true);
         });
+        updated++;
       }
     }
   }
+  console.log('[smartUpdate] done', {total: objects.length, updated});
 }
-fabric.Image.fromURL(url, img => {
-  img.set({
-    crossOrigin: 'anonymous',
-    scaleX: 1,    // 绝不缩放
-    scaleY: 1,
-  });
-}, { crossOrigin: 'anonymous' });
 // 全关！！！
 fabric.Object.prototype.objectCaching = false;
 fabric.Object.prototype.stateful = false;

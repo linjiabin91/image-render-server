@@ -7,6 +7,7 @@
  */
 import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
 import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
+import {CompressionType, Transformer} from '@napi-rs/image';
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname, join} from "node:path";
@@ -143,34 +144,46 @@ export class PlaywrightEngine implements Engine {
 
       // (6) 调用 draw({options, templateJson, cacheKey})
       //     模板 JSON 已完成变量替换；cacheKey 用于页面内增量更新判断
-      await entry.page.evaluate((data) => {
-        (window as unknown as Record<string, (data: unknown) => void>).draw(data);
+      //     draw 返回 {pixels, width, height} 或 null（跨域 canvas 退回到截图）
+      const pixelData = await entry.page.evaluate((data) => {
+        return (window as unknown as Record<string, (data: unknown) => Promise<unknown>>).draw(data);
       }, {options: params.options, templateJson: resolvedJson, cacheKey: key});
-      // draw 完成后再等待网络空闲 + 一次 RAF，确保远程图片加载完毕并完成 paint
+      // draw 完成后再等待网络空闲，确保远程图片加载完毕
       await entry.page.waitForLoadState("networkidle", {timeout: DRAW_TIMEOUT});
       perf.mark("draw");
 
-      // (7) 截图
-      const {format, quantity, pixelRatio = 1, width, height} = params.options;
+      // (7) 编码输出
+      const {format, quantity, pixelRatio = 1, width, height, compressLevel = 0} = params.options;
       const pw = Math.ceil(width * pixelRatio);
       const ph = Math.ceil(height * pixelRatio);
 
-      const screenshotType = toScreenshotType(format);
-      const screenshotOpts: PageScreenshotOptions = {
-        type: screenshotType,
-        clip: {x: 0, y: 0, width: pw, height: ph},
-      };
-
-      // quality 仅对 jpeg 有效，设置到 png 会抛错
-      if (screenshotType === "jpeg") {
-        screenshotOpts.quality = quantity;
+      let result: Buffer;
+      if (pixelData && format === "png") {
+        // PNG：用 raw buffer + @napi-rs/image 精确控制压缩比
+        const pd = pixelData as {pixels: Uint8Array; width: number; height: number};
+        const pixels = Buffer.from(pd.pixels);
+        const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
+        result = tx.pngSync({
+          compressionType: compressLevel === 0 ? CompressionType.Default
+            : compressLevel === 1 ? CompressionType.Best
+            : CompressionType.Fast,
+        });
+      } else {
+        // JPEG 或跨域 canvas 退回到 Playwright 截图
+        const screenshotType = toScreenshotType(format);
+        const opts: PageScreenshotOptions = {
+          type: screenshotType,
+          clip: {x: 0, y: 0, width: pw, height: ph},
+        };
+        if (screenshotType === "jpeg") {
+          opts.quality = quantity;
+        }
+        result = await entry.page.screenshot(opts);
       }
-
-      const buffer = await entry.page.screenshot(screenshotOpts);
       perf.mark("screenshot");
 
       logger.info({steps: perf.steps(), tree: perf.snapshot(), format, size: `${pw}x${ph}`}, "render");
-      return buffer;
+      return result;
     } finally {
       // (8) 释放页面
       entry.locked = false;
@@ -239,6 +252,11 @@ export class PlaywrightEngine implements Engine {
     }
 
     const page = await this.#context.newPage();
+
+    // 转发页面 console 日志到引擎日志（用于调试）
+    page.on("console", (msg) => {
+      logger.info({page: key.slice(0, 8), type: msg.type(), text: msg.text()}, "[page]");
+    });
 
     // 注册页面崩溃和错误监听，自动从池中移除已崩溃页面
     page.on("crash", () => {
