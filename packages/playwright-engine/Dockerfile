@@ -51,6 +51,7 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 WORKDIR /app
 
 COPY --from=builder /app/node_modules node_modules
+COPY --from=builder /app/packages/core/package.json packages/core/
 COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/core/fonts packages/core/fonts
 COPY --from=builder /app/packages/server/package.json packages/server/
