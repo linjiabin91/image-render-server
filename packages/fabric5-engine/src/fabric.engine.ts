@@ -1,4 +1,4 @@
-import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
 import {Canvas, FontLibrary, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
 import {fileURLToPath} from 'node:url';
@@ -296,7 +296,7 @@ export class FabricEngine implements Engine {
         const perf = new PerfTimer("render");
 
         // (a) 变量替换
-        const resolvedJson = this.#resolveVariables(json, params.variables);
+        const resolvedJson = resolveVariables(json, params.variables);
         perf.mark("resolve");
 
         // (b) 预下载图片
@@ -349,12 +349,6 @@ export class FabricEngine implements Engine {
     }
 
     // ── 私有方法 ──────────────────────────────────────────────────────────
-
-    #resolveVariables(json: FabricTemplateJson, variables: Record<string, string>): FabricTemplateJson {
-        const str = JSON.stringify(json);
-        const resolved = str.replace(/\{\{(\w+)}}/g, (_, key: string) => variables[key] ?? `{{${key}}}`);
-        return JSON.parse(resolved) as FabricTemplateJson;
-    }
 
     async #preloadImages(json: FabricTemplateJson): Promise<void> {
         const urls = collectImageUrls(json);

@@ -1,4 +1,4 @@
-import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
 import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {StaticCanvas, FabricImage, getFabricDocument, setEnv, getEnv} from 'fabric/node';
@@ -209,7 +209,7 @@ export class FabricEngine implements Engine {
         const json = params.templateJson;
         const perf = new PerfTimer("render");
 
-        const resolved = this.#resolveVariables(json, params.variables);
+        const resolved = resolveVariables(json, params.variables);
         perf.mark("resolve");
 
         await this.#preload(resolved);
@@ -255,10 +255,6 @@ export class FabricEngine implements Engine {
     }
 
     // ── private ──
-
-    #resolveVariables(j: FabricTemplateJson, v: Record<string, string>): FabricTemplateJson {
-        return JSON.parse(JSON.stringify(j).replace(/\{\{(\w+)}}/g, (_, k: string) => v[k] ?? `{{${k}}}`));
-    }
 
     async #preload(j: FabricTemplateJson): Promise<void> {
         const urls = collectImageUrls(j);

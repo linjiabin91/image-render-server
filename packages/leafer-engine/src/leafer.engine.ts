@@ -1,8 +1,9 @@
-import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
 import {Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
 import {CompressionType, Transformer} from '@napi-rs/image'
+import {createHash} from "node:crypto";
 
 useCanvas('napi', napi) // must
 
@@ -46,6 +47,8 @@ export class LeaferEngine implements Engine {
     /** 池子最大容量 */
     static #POOL_MAX = 10;
     #initialized = false;
+    /** 记录每个 Leafer 实例的 cacheKey，用于缓存命中判断 */
+    #cacheKeyMap = new WeakMap<Leafer, string>();
 
     /**
      * 初始化引擎，建立 Leafer 画布环境
@@ -78,16 +81,31 @@ export class LeaferEngine implements Engine {
         const json = params.templateJson;
         const perf = new PerfTimer("render");
 
-        // (a) 预下载图片
-        await this.#preloadImages(json);
-        perf.mark("preload");
+        // (a) 变量替换
+        const resolvedJson = resolveVariables(json, params.variables);
+        perf.mark("resolve");
 
-        // (b) 渲染到 Leafer 画布
+        // (b) 判断缓存命中
+        const cacheKey = createHash("md5").update(JSON.stringify({options: params.options, templateJson: json})).digest("hex");
         const leafer = this.#getLeafer(pw, ph);
-        if (json.children) {
-            leafer.add(json.children as any);
+        const prevKey = this.#cacheKeyMap.get(leafer);
+        const isCacheHit = prevKey === cacheKey && leafer.children.length > 0;
+
+        if (isCacheHit) {
+            // HIT：跳过预下载和 clear，仅增量更新变化的属性
+            this.#smartUpdate(leafer, resolvedJson);
+            leafer.forceRender();
+        } else {
+            // MISS：预下载图片 + 全量重建
+            await this.#preloadImages(resolvedJson);
+            perf.mark("preload");
+            leafer.clear();
+            if (resolvedJson.children) {
+                leafer.add(resolvedJson.children as any);
+            }
+            this.#cacheKeyMap.set(leafer, cacheKey);
+            leafer.start();
         }
-        leafer.start();
         perf.mark("leafer");
 
         let result: Buffer;
@@ -119,6 +137,7 @@ export class LeaferEngine implements Engine {
      */
     destroy(): void {
         for (const leafer of this.#leaferPool.values()) {
+            this.#cacheKeyMap.delete(leafer);
             leafer.destroy();
         }
         this.#leaferPool.clear();
@@ -128,19 +147,20 @@ export class LeaferEngine implements Engine {
     #getLeafer(width: number, height: number): Leafer {
         const key = `${width}x${height}`;
 
-        // 命中了：移到末尾（最近使用），clear 后返回
+        // 命中了：移到末尾（最近使用），返回
         if (this.#leaferPool.has(key)) {
             const leafer = this.#leaferPool.get(key)!;
             this.#leaferPool.delete(key);
             this.#leaferPool.set(key, leafer);
-            leafer.clear();
             return leafer;
         }
 
         // 超过上限：淘汰最久未使用的
         if (this.#leaferPool.size >= LeaferEngine.#POOL_MAX) {
             const oldestKey = this.#leaferPool.keys().next().value!;
-            this.#leaferPool.get(oldestKey)!.destroy();
+            const oldest = this.#leaferPool.get(oldestKey)!;
+            this.#cacheKeyMap.delete(oldest);
+            oldest.destroy();
             this.#leaferPool.delete(oldestKey);
         }
 
@@ -167,6 +187,59 @@ export class LeaferEngine implements Engine {
                 }),
             ),
         );
+    }
+
+    /**
+     * 增量更新 Leafer 画布节点 — 仅更新变化的 text/url 属性
+     *
+     * 按数组索引匹配 + id/name 交叉验证。支持递归处理嵌套子节点。
+     *
+     * @param leafer - Leafer 画布实例
+     * @param resolvedJson - 变量替换后的模板 JSON
+     */
+    #smartUpdate(leafer: Leafer, resolvedJson: LeaferTemplateJson): void {
+        this.#smartUpdateChildren(leafer.children as any[], resolvedJson.children ?? []);
+    }
+
+    /**
+     * 递归更新子节点列表
+     *
+     * 按数组索引位置匹配，前置 cache hit 保证数据结构一致。
+     *
+     * @param existing - 现有的 Leafer 叶子节点数组
+     * @param newChildren - 新的模板节点数组
+     */
+    #smartUpdateChildren(existing: any[], newChildren: LeaferNode[]): void {
+        const len = Math.min(existing.length, newChildren.length);
+        for (let i = 0; i < len; i++) {
+            const target = existing[i];
+            const node = newChildren[i];
+
+            if (node.tag === "Text" && target.tag === "Text") {
+                if (target.text !== node.text) {
+                    target.set({text: node.text ?? ""});
+                }
+            } else if (node.tag === "Image" && target.tag === "Image") {
+                if (target.url !== node.url) {
+                    target.set({url: node.url ?? ""});
+                }
+                // 同时检查 fill.url（Image fill 场景）
+                if (
+                    node.fill &&
+                    typeof node.fill === "object" &&
+                    target.fill &&
+                    typeof target.fill === "object" &&
+                    target.fill.url !== node.fill.url
+                ) {
+                    target.set({fill: node.fill});
+                }
+            }
+
+            // 递归处理嵌套子节点
+            if (target.children && target.children.length > 0 && node.children && node.children.length > 0) {
+                this.#smartUpdateChildren(target.children, node.children);
+            }
+        }
     }
 }
 
