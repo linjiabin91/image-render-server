@@ -9,9 +9,11 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpixman-1-0 libpng-dev libgif-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/leafer-engine/package.json packages/leafer-engine/
@@ -19,9 +21,8 @@ COPY packages/fabric5-engine/package.json packages/fabric5-engine/
 COPY packages/fabric-engine/package.json packages/fabric-engine/
 COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
-RUN npm install
+RUN pnpm install
 
-COPY tsconfig.json .
 COPY tsconfig.json .
 COPY packages/core/tsconfig.json packages/core/
 COPY packages/server/tsconfig.json packages/server/
@@ -31,7 +32,7 @@ COPY packages/server/src packages/server/src
 COPY packages/fabric-engine/src packages/fabric-engine/src
 COPY packages/core/fonts packages/core/fonts
 
-RUN npx tsc -b packages/core packages/server packages/fabric-engine
+RUN pnpm tsc -b packages/core packages/server packages/fabric-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
 FROM docker.m.daocloud.io/library/node:23-slim

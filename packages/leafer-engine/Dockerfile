@@ -9,10 +9,13 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpixman-1-0 libpng-dev libgif-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# 安装 pnpm（项目使用 pnpm 管理依赖）
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-# 依赖层 — 复制所有 workspace package.json（npm ci 需要完整的 workspace 信息）
-COPY package.json ./
+# 依赖层 — 复制所有 workspace package.json
+COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/leafer-engine/package.json packages/leafer-engine/
@@ -20,7 +23,7 @@ COPY packages/fabric5-engine/package.json packages/fabric5-engine/
 COPY packages/fabric-engine/package.json packages/fabric-engine/
 COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
-RUN npm install
+RUN pnpm install
 
 # 源码层 — 仅复制当前引擎所需（含 tsconfig，tsc -b 需要子包 tsconfig.json）
 COPY tsconfig.json .
@@ -33,7 +36,7 @@ COPY packages/leafer-engine/src packages/leafer-engine/src
 COPY packages/core/fonts packages/core/fonts
 
 # 构建
-RUN npx tsc -b packages/core packages/server packages/leafer-engine
+RUN pnpm tsc -b packages/core packages/server packages/leafer-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
 FROM docker.m.daocloud.io/library/node:23-slim

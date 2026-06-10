@@ -21,10 +21,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.0"
   },
-  "overrides": {
-    "canvas": "@napi-rs/canvas"
-  },
-  "npam": {
+  "packageManager": "pnpm@8.4.0",
+  "pnpm": {
     "overrides": {
       "canvas": "@napi-rs/canvas"
     }

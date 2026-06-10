@@ -9,9 +9,11 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpixman-1-0 libpng-dev libgif-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/leafer-engine/package.json packages/leafer-engine/
@@ -19,7 +21,7 @@ COPY packages/fabric5-engine/package.json packages/fabric5-engine/
 COPY packages/fabric-engine/package.json packages/fabric-engine/
 COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
-RUN npm install
+RUN pnpm install
 
 COPY tsconfig.json .
 COPY packages/core/tsconfig.json packages/core/
@@ -31,7 +33,7 @@ COPY packages/playwright-engine/src packages/playwright-engine/src
 COPY packages/core/fonts packages/core/fonts
 
 # playwright 需要在 tsc 后额外复制 pages/ 到 dist/
-RUN npx tsc -b packages/core packages/server packages/playwright-engine && \
+RUN pnpm tsc -b packages/core packages/server packages/playwright-engine && \
     cp -r packages/playwright-engine/src/pages packages/playwright-engine/dist/
 
 # ── Runtime ────────────────────────────────────────────────────────────────
