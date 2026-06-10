@@ -5,11 +5,11 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
-    canvas#renderCanvas { display: block; }
+    #renderContainer { position: relative; }
   </style>
 </head>
 <body>
-<canvas id="renderCanvas"></canvas>
+<div id="renderContainer"></div>
 <script src="konva/9.3.0/konva.min.js"></script>
 <script>
 /**
@@ -18,6 +18,9 @@
  * 接收 {options, templateJson, cacheKey}，使用 Konva Stage 渲染。
  * 首次调用或 cacheKey 变更时：预加载图片 → 全量重建；
  * 相同 cacheKey 时：走增量更新，仅更新变化的 text/image 属性。
+ *
+ * Konva 使用 container 创建内部 canvas（与 Leafer/Fabric 不同），
+ * 页面只提供 div 容器，Konva 自行管理 canvas 元素。
  *
  * 兼容 tag 和 className 两种节点类型标识：
  * - tag: "Text" | "Image" | "Group"（leafer 格式）
@@ -39,6 +42,9 @@ var _stage = null;
 var _layer = null;
 /** @type {string|null} */
 var _cacheKey = null;
+
+/** @type {HTMLDivElement|null} */
+var _container = null;
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────
 
@@ -123,16 +129,12 @@ async function draw(params) {
   var width = Math.ceil(options.width * pixelRatio);
   var height = Math.ceil(options.height * pixelRatio);
 
-  // ── 1. 初始化/调整画布 ──────────────────────────────────────────
-  var canvasEl = document.getElementById('renderCanvas');
-  canvasEl.width = width;
-  canvasEl.height = height;
-  canvasEl.style.width = options.width + 'px';
-  canvasEl.style.height = options.height + 'px';
-
+  // ── 1. 初始化 Stage ───────────────────────────────────────────
+  // Konva 使用 container div 创建内部 canvas，不要使用 canvas 元素作为 container
   if (!_stage) {
+    _container = document.getElementById('renderContainer');
     _stage = new Konva.Stage({
-      container: 'renderCanvas',
+      container: _container,
       width: width,
       height: height,
     });
