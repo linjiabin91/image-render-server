@@ -99,7 +99,7 @@ export class LeaferEngine implements Engine {
         if (isCacheHit) {
             // HIT：跳过预下载和 clear，仅增量更新变化的属性
             this.#smartUpdate(leafer, resolvedJson);
-            leafer.renderer.renderAgain();
+            leafer.stop();
         } else {
             perf.mark("preload");
             leafer.clear();
@@ -107,8 +107,8 @@ export class LeaferEngine implements Engine {
                 leafer.add(resolvedJson.children as any);
             }
             this.#cacheKeyMap.set(leafer, cacheKey);
-            leafer.start();
         }
+        leafer.start();
         perf.mark("leafer");
 
         let result: Buffer;
@@ -220,11 +220,11 @@ export class LeaferEngine implements Engine {
 
             if (node.tag === "Text" && target.tag === "Text") {
                 if (target.text !== node.text) {
-                    target.text = node.text;
+                    target.set({text: node.text});
                 }
             } else if (node.tag === "Image" && target.tag === "Image") {
-                if (target.url !== node.url) {
-                    target.url = node.url
+                if (node.url !== undefined && target.url !== node.url) {
+                    target.set({url: node.url});
                 }
                 // 同时检查 fill.url（Image fill 场景）
                 const targetFill = (target.fill || {type: ''}) as any;

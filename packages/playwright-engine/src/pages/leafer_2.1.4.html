@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    canvas#renderCanvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<script src="leafer/2.1.4/web.min.js"></script>
+<script>
+/**
+ * leafer 2.1.4 渲染页面入口
+ *
+ * 接收 {options, templateJson, cacheKey}，使用 Leafer 渲染。
+ * 首次调用或 cacheKey 变更时全量重建；
+ * 相同 cacheKey 时走增量更新，仅更新变化的 text/url 属性。
+ *
+ * @param {Object} params
+ * @param {Object} params.options - 渲染配置 {width, height, pixelRatio, ...}
+ * @param {Object} params.templateJson - 变量替换后的 Leafer JSON
+ * @param {string} params.cacheKey - 模板 MD5，用于增量更新判断
+ */
+
+/** @type {Leafer|null} */
+var _leafer = null;
+/** @type {string|null} */
+var _cacheKey = null;
+
+async function draw(params) {
+  var options = params.options;
+  var templateJson = params.templateJson;
+  var cacheKey = params.cacheKey;
+  var pixelRatio = options.pixelRatio || 1;
+  var width = Math.ceil(options.width * pixelRatio);
+  var height = Math.ceil(options.height * pixelRatio);
+
+  // ── 1. 初始化/调整画布 ──────────────────────────────────────────
+  var canvasEl = document.getElementById('renderCanvas');
+  canvasEl.width = width;
+  canvasEl.height = height;
+  canvasEl.style.width = options.width + 'px';
+  canvasEl.style.height = options.height + 'px';
+
+  if (!_leafer) {
+    _leafer = new Leafer({
+      view: canvasEl,
+      width: width,
+      height: height,
+      usePartRender: true,
+    });
+  }
+
+  // ── 2. 加载/更新内容 ──────────────────────────────────────────
+  const childrenLen = _leafer.children.length;
+  if (cacheKey && cacheKey === _cacheKey && childrenLen > 0) {
+    console.log('[draw] CACHE HIT', {cacheKey: cacheKey, _cacheKey: _cacheKey, children: childrenLen});
+    smartUpdate(_leafer, templateJson);
+    _leafer.forceRender()
+  } else {
+    console.log('[draw] CACHE MISS', {cacheKey: cacheKey, _cacheKey: _cacheKey, children: childrenLen});
+    _leafer.clear();
+    if (templateJson.children) {
+      _leafer.add(templateJson.children);
+    }
+    _cacheKey = cacheKey;
+    _leafer.start();
+  }
+  await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+  return null;
+}
+
+/**
+ * 增量更新 — 按数组索引匹配，仅更新变动的 text/url 属性
+ *
+ * 前置 cache hit 保证数据结构一致，无需 id/name 交叉验证。
+ * 递归处理嵌套子节点。
+ *
+ * @param {Leafer} leafer
+ * @param {Object} json - 变量替换后的 Leafer JSON
+ */
+function smartUpdate(leafer, json) {
+  smartUpdateChildren(leafer.children || [], json.children || []);
+}
+
+function smartUpdateChildren(existing, newChildren) {
+  var len = Math.min(existing.length, newChildren.length);
+  var updated = 0;
+  for (var i = 0; i < len; i++) {
+    var target = existing[i];
+    var node = newChildren[i];
+    if (!target || !node) continue;
+
+    if (node.tag === "Text" && target.tag === "Text") {
+      if (target.text !== node.text) {
+        console.log('[smartUpdate] text changed', {index: i, from: target.text, to: node.text});
+        target.set({text: node.text});
+        updated++;
+      }
+    } else if (node.tag === "Image" && target.tag === "Image") {
+      if (node.url !== undefined && target.url !== node.url) {
+        console.log('[smartUpdate] image url changed', {index: i, from: target.url, to: node.url});
+        target.set({url: node.url});
+        updated++;
+      }
+      // 同时检查 fill.url（Image fill 场景）
+      var targetFill = target.fill || {type: ''};
+      var fill = node.fill;
+      if (
+        fill &&
+        fill.type === "image" &&
+        targetFill.type === "image" &&
+        targetFill.url !== fill.url
+      ) {
+        console.log('[smartUpdate] fill url changed', {index: i, from: targetFill.url, to: fill.url});
+        targetFill.url = fill.url;
+        updated++;
+      }
+    }
+
+    // 递归处理嵌套子节点
+    if (target.children && target.children.length > 0 && node.children && node.children.length > 0) {
+      smartUpdateChildren(target.children, node.children);
+    }
+  }
+  console.log('[smartUpdate] done', {total: existing.length, updated: updated});
+}
+</script>
+</body>
+</html>
