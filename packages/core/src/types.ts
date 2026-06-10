@@ -1,5 +1,5 @@
 /** 图片输出格式 */
-export type ImageFormat = "png" | "jpeg";
+export type ImageFormat = "png" | "jpeg" | 'jpg' | 'webp' | 'pdf' | 'svg';
 
 /**
  * 0-100 的整数

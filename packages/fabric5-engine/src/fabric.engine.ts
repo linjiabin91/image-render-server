@@ -304,24 +304,34 @@ export class FabricEngine implements Engine {
         perf.mark("preload");
 
         // (c) 渲染到 Skia 画布
-        const fabricCanvas = this.#getCanvas(pw, ph);
-        await this.#loadJson(fabricCanvas, resolvedJson);
+        const cacheKey = createHash('md5').update(JSON.stringify({options: params.options, templateJson: params.templateJson})).digest('hex');
+        const fabricCanvas = this.#getCanvas(pw, ph, cacheKey);
+
+        if (fabricCanvas.getObjects().length > 0) {
+            // (c1) 缓存命中且有对象 → 增量更新 text / src
+            this.#smartUpdate(fabricCanvas, resolvedJson);
+        } else {
+            // (c2) 首次或清空后 → 全量加载
+            await this.#loadJson(fabricCanvas, resolvedJson);
+        }
         perf.mark("fabric");
 
-        // (d) 编码输出 — skia-canvas 原生编码，无需额外库
+        // (d) 编码输出
         const skCanvas = (fabricCanvas as unknown as { lowerCanvasEl: Canvas }).lowerCanvasEl;
-        const pixels = skCanvas.toBufferSync("raw");
-        perf.mark("pixels");
-        const fromRgbaPixels = Transformer.fromRgbaPixels(pixels, pw, ph);
-        let result: Buffer;
-        if (format === "jpeg") {
-            result = await fromRgbaPixels.jpeg(quantity);
-        } else {
-            // 直接用对应数值进行转化压缩等级
-            result = await fromRgbaPixels.png({compressionType: compressLevel == 0 ? CompressionType.Default : (compressLevel == 1 ? CompressionType.Best : CompressionType.Fast)});
-        }
-        perf.mark("encode");
 
+        let result: Buffer;
+        if (format === "png" ) {
+            // PNG/WebP：走 raw buffer + @napi-rs/image 以获得压缩选项控制
+            const pixels = skCanvas.toBufferSync("raw");
+            perf.mark("pixels");
+            const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
+            result = await tx.png({compressionType: compressLevel == 0 ? CompressionType.Default : (compressLevel == 1 ? CompressionType.Best : CompressionType.Fast)});
+            perf.mark("encode");
+        } else {
+            // JPEG：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
+            result = skCanvas.toBufferSync(format, {quality: quantity/100} as any);
+            perf.mark("pixels+encode");
+        }
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
         return result;
     }
@@ -367,6 +377,13 @@ export class FabricEngine implements Engine {
         );
     }
 
+    /**
+     * 全量加载 JSON 到画布
+     *
+     * @param skCanvas - Fabric 画布实例
+     * @param json - 模板 JSON（变量已替换）
+     * @returns 加载完成后的 Promise
+     */
     #loadJson(skCanvas: fabric.StaticCanvas, json: FabricTemplateJson): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             try {
@@ -380,14 +397,51 @@ export class FabricEngine implements Engine {
         });
     }
 
-    #getCanvas(width: number, height: number): fabric.StaticCanvas {
-        const key = `${width}x${height}`;
+    /**
+     * 增量更新画布对象（跳过全量 loadFromJSON）
+     *
+     * 遍历 resolvedJson 中的对象，按 id 匹配画布上已有对象：
+     * - text 类型 → 更新 text 属性
+     * - image 类型 → 更新 src 属性
+     *
+     * @param skCanvas - Fabric 画布实例
+     * @param resolvedJson - 变量替换后的模板 JSON
+     */
+    #smartUpdate(skCanvas: fabric.StaticCanvas, resolvedJson: FabricTemplateJson): void {
+        const existing = skCanvas.getObjects();
+        for (let i = 0; i < resolvedJson.objects.length; i++) {
+            const obj = resolvedJson.objects[i];
+            const target = existing[i];
+            if (obj.id != (target as any).id) continue;
+            const type = (obj.type ?? '').toLowerCase();
+            if (type.includes('text')) {
+                (target as any).set({'text': obj.text ?? '', 'dirty': true});
+            } else if (type === 'image') {
+                (target as any).set({'src': obj.src ?? '', 'dirty': true});
+            }
+        }
+        skCanvas.renderAll();
+    }
 
+    /**
+     * 获取或创建画布实例（池化管理）
+     *
+     * 以模板 MD5 为 key，同一模板复用画布对象。
+     * 已有对象时保留（render 中走增量更新），否则清空重用。
+     * 超限时淘汰最早使用的画布。
+     *
+     * @param width - 画布宽度
+     * @param height - 画布高度
+     * @param key - 缓存键（md5(options + templateJson)）
+     * @returns Fabric 画布实例
+     */
+    #getCanvas(width: number, height: number, key: string): fabric.StaticCanvas {
         if (this.#canvasPool.has(key)) {
             const c = this.#canvasPool.get(key)!;
             this.#canvasPool.delete(key);
             this.#canvasPool.set(key, c);
-            c.clear();
+            // 已有对象则保留（render 中会走增量更新），否则清空重用
+            if (c.getObjects().length === 0) c.clear();
             return c;
         }
 
