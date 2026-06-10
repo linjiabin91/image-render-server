@@ -1,0 +1,22 @@
+{
+  "name": "@render-server/benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "benchmark": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "benchmark": "node dist/index.js"
+  },
+  "dependencies": {
+    "autocannon": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/autocannon": "^7.0.0",
+    "@types/node": "^25.9.2"
+  }
+}
