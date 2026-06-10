@@ -1,5 +1,5 @@
-import {type Engine, logger, type RenderOptions, PerfTimer, resolveVariables} from "@render-server/core";
-import {Canvas, FontLibrary, loadImage} from 'skia-canvas';
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {Canvas, FontLibrary, Image, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
@@ -100,10 +100,10 @@ const cacheKeyFor = (url: string) => createHash('md5').update(url).digest('hex')
 const cachePathFor = (url: string) => resolve(SHARED_CACHE_DIR, cacheKeyFor(url));
 
 /** 进程内 LRU 缓存 */
-const imageCache = new LRUCache<string, any>({max: 50, ttl: 1000 * 60 * 30});
+const imageCache = new LRUCache<string, Image>({max: 50, ttl: 1000 * 60 * 30});
 
 /** 请求去重 */
-const inflightRequests = new LRUCache<string, Promise<any>>({max: 100, ttl: 1000 * 60 * 5});
+const inflightRequests = new LRUCache<string, Promise<unknown>>({max: 100, ttl: 1000 * 60 * 5});
 
 /**
  * 从 URL 或磁盘缓存加载图片，返回 skia-canvas 原生 Image
@@ -357,13 +357,13 @@ export class FabricEngine implements Engine {
             urls.map((url) => {
                 if (!imageCache.has(url)) {
                     const p = loadImageWithCache(url).then((img) => {
-                        imageCache.set(url, img);
+                        imageCache.set(url, img as Image);
                         return img;
                     }).catch((err: Error) => {
                         logger.warn({err, url: url.slice(0, 80)}, "image load failed");
                         return null;
                     });
-                    imageCache.set(url, p);
+                    imageCache.set(url, p as unknown as Image);
                 }
                 return imageCache.get(url);
             }),
