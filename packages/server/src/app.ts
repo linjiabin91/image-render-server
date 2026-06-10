@@ -3,6 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import underPressure from "@fastify/under-pressure";
 import PiscinaModule from "piscina";
 import { resolve } from "node:path";
+import * as os from "node:os";
 
 interface PiscinaInstance {
   run(task: unknown): Promise<unknown>;
@@ -33,6 +34,8 @@ export interface AppOptions {
   maxHeapUsedBytes?: number;
 }
 
+let threads = Math.max(2, os.cpus().length - 2);
+
 export class App {
   #fastify = Fastify({ logger: true });
   #piscina!: PiscinaInstance;
@@ -43,9 +46,14 @@ export class App {
    * @param options - 可选配置
    */
   constructor(
-    private readonly port: number,
+    private readonly port: number = 3000,
     workJsPath: string,
-    options?: AppOptions,
+    options: AppOptions = {
+      piscina: {minThreads: threads, maxThreads: threads},
+      maxRequestsPerMinute: 100 * 60,
+      maxEventLoopDelay: 200,
+      maxHeapUsedBytes: 0.8,
+    },
   ) {
     this.#piscina = new Piscina({
       filename: resolve(workJsPath),
@@ -58,7 +66,7 @@ export class App {
 
   #registerPlugins(options?: AppOptions): void {
     this.#fastify.register(rateLimit, {
-      max: options?.maxRequestsPerMinute ?? 100,
+      max: options?.maxRequestsPerMinute ?? 50 * 60,
       timeWindow: "1 minute",
     });
 

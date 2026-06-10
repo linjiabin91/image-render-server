@@ -47,7 +47,6 @@ export async function startServer(port: number): Promise<void> {
       "--disable-sync",
       "--disable-translate",
       "--hide-scrollbars",
-      '--single-process',
       '--disable-accelerated-2d-canvas',
       '--disable-background-timer-throttling'
     ],
@@ -60,7 +59,7 @@ export async function startServer(port: number): Promise<void> {
   console.log(`[PlaywrightEngine] Browser launched, CDP endpoint: ${browserEndpoint}`);
 
   // 每个 Worker 持有一个 CDP 连接和页面池，线程数不宜过多
-  const app = new App(port, getWorkerPath(), {piscina: {minThreads: 4, maxThreads: 8}});
+  const app = new App(port, getWorkerPath());
   await app.start();
   console.log(`[PlaywrightEngine] Server started on http://127.0.0.1:${port}`);
 

@@ -21,7 +21,7 @@ function getWorkerPath(): string {
  * @param port - 服务监听端口
  */
 export async function startServer(port: number): Promise<void> {
-  const app = new App(port, getWorkerPath(), { piscina: { minThreads: 30, maxThreads: 100 } });
+  const app = new App(port, getWorkerPath());
   await app.start();
   console.log(`[LeaferEngine] Server started on http://127.0.0.1:${port}`);
 }
