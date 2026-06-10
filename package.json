@@ -1,0 +1,23 @@
+{
+  "name": "render-server",
+  "private": true,
+  "scripts": {
+    "build": "tsc -b packages/core packages/server packages/leafer-engine packages/fabric5-engine packages/fabric-engine",
+    "start": "node packages/leafer-engine/dist/server.js"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "canvas": "@napi-rs/canvas"
+  },
+  "npam": {
+    "overrides": {
+      "canvas": "@napi-rs/canvas"
+    }
+  }
+}

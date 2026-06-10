@@ -1,0 +1,7 @@
+.idea
+.claude
+*.iml
+.DS_Store
+node_modules
+dist
+*.tsbuildinfo

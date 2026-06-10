@@ -1,0 +1,14 @@
+{
+  "name": "@render-server/core",
+  "private": false,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "pino": "^10.3.1"
+  }
+}

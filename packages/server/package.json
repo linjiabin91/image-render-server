@@ -1,0 +1,18 @@
+{
+  "name": "@render-server/server",
+  "private": false,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/under-pressure": "^9.0.3",
+    "@render-server/core": "*",
+    "fastify": "^5.8.5",
+    "piscina": "^5.1.4"
+  }
+}
