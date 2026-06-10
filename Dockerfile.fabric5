@@ -15,15 +15,15 @@ COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
 RUN npm ci
 
-# 源码层 — 复制当前引擎所需
+# 源码层 — 仅复制当前引擎所需
 COPY tsconfig.json .
 COPY packages/core/src packages/core/src
 COPY packages/server/src packages/server/src
-COPY packages/leafer-engine/src packages/leafer-engine/src
+COPY packages/fabric5-engine/src packages/fabric5-engine/src
 COPY packages/core/fonts packages/core/fonts
 
 # 构建
-RUN npx tsc -b packages/core packages/server packages/leafer-engine
+RUN npx tsc -b packages/core packages/server packages/fabric5-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
 FROM node:23-alpine
@@ -36,8 +36,8 @@ COPY --from=builder /app/node_modules node_modules
 COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/core/fonts packages/core/fonts
 COPY --from=builder /app/packages/server/dist packages/server/dist
-COPY --from=builder /app/packages/leafer-engine/dist packages/leafer-engine/dist
+COPY --from=builder /app/packages/fabric5-engine/dist packages/fabric5-engine/dist
 
 EXPOSE 3000
 
-CMD ["node", "packages/leafer-engine/dist/server.js"]
+CMD ["node", "packages/fabric5-engine/dist/server.js"]

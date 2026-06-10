@@ -15,7 +15,7 @@ COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
 RUN npm ci
 
-# 源码层 — 复制当前引擎所需
+# 源码层 — 仅复制当前引擎所需
 COPY tsconfig.json .
 COPY packages/core/src packages/core/src
 COPY packages/server/src packages/server/src

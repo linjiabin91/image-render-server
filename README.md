@@ -312,7 +312,33 @@ export async function startServer(port: number): Promise<void> {
 
 ## Docker
 
+每个引擎有独立的 Dockerfile，多阶段构建（builder → runtime），仅打包引擎自身代码。
+
 ```bash
-docker build -t render-server .
-docker run -p 3000:3000 render-server
+# Leafer（默认）
+docker build -t render-server:leafer -f Dockerfile.leafer .
+docker run -p 3000:3000 render-server:leafer
+
+# Fabric 5
+docker build -t render-server:fabric5 -f Dockerfile.fabric5 .
+docker run -p 3000:3000 render-server:fabric5
+
+# Fabric 7
+docker build -t render-server:fabric -f Dockerfile.fabric .
+docker run -p 3000:3000 render-server:fabric
+
+# Playwright（含 Chromium）
+docker build -t render-server:playwright -f Dockerfile.playwright .
+docker run -p 3000:3000 render-server:playwright
+
+# Konva
+docker build -t render-server:konva -f Dockerfile.konva .
+docker run -p 3000:3000 render-server:konva
 ```
+
+### Dockerfile 说明
+
+- **多阶段构建**：builder 阶段安装编译工具（python3, make, g++）编译原生模块（@napi-rs/canvas、skia-canvas），runtime 阶段只保留 libc6-compat
+- **依赖缓存**：先复制所有 package.json 执行 `npm ci`，利用 Docker 层缓存加速重复构建
+- **Workspace 兼容**：复制全部 engine 的 package.json 以满足 npm workspaces 解析，但仅复制目标引擎源码
+- **Playwright**：runtime 镜像安装 chromium 系统包，通过 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 跳过浏览器下载
