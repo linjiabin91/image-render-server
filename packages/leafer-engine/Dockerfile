@@ -1,11 +1,17 @@
-FROM node:23-alpine AS builder
+FROM docker.m.daocloud.io/library/node:23-slim AS builder
 
-RUN apk add --no-cache python3 make g++ libc6-compat
+# 替换为国内源 + 安装编译依赖
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3 make g++ \
+        libc6-dev \
+        libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpixman-1-0 libpng-dev libgif-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # 依赖层 — 复制所有 workspace package.json（npm ci 需要完整的 workspace 信息）
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/leafer-engine/package.json packages/leafer-engine/
@@ -26,9 +32,12 @@ COPY packages/core/fonts packages/core/fonts
 RUN npx tsc -b packages/core packages/server packages/leafer-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
-FROM node:23-alpine
+FROM docker.m.daocloud.io/library/node:23-slim
 
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libc6-dev \
+        libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
