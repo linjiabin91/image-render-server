@@ -182,7 +182,7 @@ export class PlaywrightEngine implements Engine {
       }
       perf.mark("screenshot");
 
-      logger.info({steps: perf.steps(), tree: perf.snapshot(), format, size: `${pw}x${ph}`}, "render");
+      logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
       return result;
     } finally {
       // (8) 释放页面
