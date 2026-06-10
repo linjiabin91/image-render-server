@@ -11,25 +11,25 @@ services:
       context: .
       dockerfile: packages/fabric5-engine/Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
   fabric:
     build:
       context: .
       dockerfile: packages/fabric-engine/Dockerfile
     ports:
-      - "3000:3000"
+      - "3002:3000"
 
   playwright:
     build:
       context: .
       dockerfile: packages/playwright-engine/Dockerfile
     ports:
-      - "3000:3000"
+      - "3003:3000"
 
   konva:
     build:
       context: .
       dockerfile: packages/konva-engine/Dockerfile
     ports:
-      - "3000:3000"
+      - "3004:3000"
