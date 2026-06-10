@@ -48,15 +48,16 @@ function normalizeImageOptions(obj, imgEl) {
 }
 
 // ── Fabric 7 FabricImage.fromObject 拦截 ───────────────────────────────────
-// 强制 crossOrigin: "anonymous" 避免 canvas 被跨域污染
+// 不再强制 crossOrigin — 始终使用 page.screenshot() 截图，canvas 跨域污染不影响截图。
+// 仅拦截以应用 normalizeImageOptions（CSS 约束修正）。
+// 注意：fabric 7 中 fabric.util.object.clone 已不存在，改用 Object.assign 浅拷贝。
 
 (function () {
   var origFromObject = fabric.FabricImage.fromObject;
   fabric.FabricImage.fromObject = async function (obj) {
-    var object = fabric.util.object.clone(obj);
-    // fabric 7 的 loadImage 返回 Promise<HTMLImageElement>
+    var object = Object.assign({}, obj);
     try {
-      var img = await fabric.util.loadImage(object.src, { crossOrigin: 'anonymous' });
+      var img = await fabric.util.loadImage(object.src);
       if (!img) {
         return origFromObject ? origFromObject.call(this, object) : null;
       }
@@ -72,6 +73,7 @@ function normalizeImageOptions(obj, imgEl) {
 var _canvas = null;
 /** @type {string|null} */
 var _cacheKey = null;
+
 
 async function draw(params) {
   var options = params.options;
@@ -107,6 +109,7 @@ async function draw(params) {
     smartUpdate(_canvas, templateJson);
   } else {
     console.log('[draw] CACHE MISS', {cacheKey: cacheKey, _cacheKey: _cacheKey, objects: objectsLen, reason: cacheKey ? (cacheKey === _cacheKey ? 'no objects' : 'key mismatch') : 'no key'});
+
     _canvas.clear();
     await loadJson(_canvas, templateJson);
     _cacheKey = cacheKey;
@@ -122,6 +125,12 @@ async function draw(params) {
  */
 function loadJson(canvas, json) {
   return canvas.loadFromJSON(json).then(function () {
+    console.log('[loadJson] after loadFromJSON', {
+      bgImageType: typeof canvas.backgroundImage,
+      bgImageExists: !!canvas.backgroundImage,
+      bgSrc: canvas.backgroundImage ? (canvas.backgroundImage.getSrc() || '').slice(0,60) : 'N/A',
+      objectsCount: canvas.getObjects().length,
+    });
     return new Promise(function (resolve) { requestAnimationFrame(resolve); });
   });
 }

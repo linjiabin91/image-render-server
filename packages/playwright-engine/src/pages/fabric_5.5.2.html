@@ -67,16 +67,16 @@ function normalizeImageOptions(obj, imgEl) {
 
 // ── Fabric Image.fromObject 拦截 ───────────────────────────────────────────
 //
-// 拦截 fabric.Image.fromObject，强制 crossOrigin: "anonymous" 避免 canvas 被跨域污染，
-// 同时在图片加载完成后应用 normalizeImageOptions。
-// 注意：这要求图片服务器返回 Access-Control-Allow-Origin 头。
+// 拦截 fabric.Image.fromObject，不再强制 crossOrigin。
+// 始终使用 page.screenshot() 截图，canvas 跨域污染不影响截图。
+// 仅拦截以应用 normalizeImageOptions（CSS 约束修正）。
 
 (function () {
   fabric.Image.fromObject = function (obj, callback) {
     // clone 避免修改传入对象
     var object = fabric.util.object.clone(obj);
-    // fabric 5.5.2 的 fromObject 内部调 fabric.util.loadImage
-    // 最后一个参数是 crossOrigin，强制 use 'anonymous' 使 canvas 可读
+    // 不传 crossOrigin，由浏览器默认行为加载（无 CORS），
+    // 避免 OBS 等存储因 CORS 失败导致图片加载失败
     fabric.util.loadImage(object.src, function (img, isError) {
       if (isError || !img) {
         callback && callback(null, true);
@@ -85,7 +85,7 @@ function normalizeImageOptions(obj, imgEl) {
       normalizeImageOptions(object, img);
       var imgInstance = new fabric.Image(img, object);
       callback && callback(imgInstance, false);
-    }, null, 'anonymous');
+    }, null, null);
   };
 })();
 
