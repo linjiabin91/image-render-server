@@ -321,14 +321,14 @@ export class FabricEngine implements Engine {
 
         let result: Buffer;
         if (format === "png" ) {
-            // PNG/WebP：走 raw buffer + @napi-rs/image 以获得压缩选项控制
+            // PNG因为无法控制压缩率导致必须手动采样再压缩才会更快，因此先用 raw buffer + @napi-rs/image
             const pixels = skCanvas.toBufferSync("raw");
             perf.mark("pixels");
             const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
             result = await tx.png({compressionType: compressLevel == 0 ? CompressionType.Default : (compressLevel == 1 ? CompressionType.Best : CompressionType.Fast)});
             perf.mark("encode");
         } else {
-            // JPEG：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
+            // 其他格式：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
             result = skCanvas.toBufferSync(format, {quality: quantity/100} as any);
             perf.mark("pixels+encode");
         }

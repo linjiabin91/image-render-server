@@ -215,21 +215,34 @@ export class FabricEngine implements Engine {
         await this.#preload(resolved);
         perf.mark("preload");
 
-        const fc = this.#getCanvas(pw, ph);
-        await this.#loadJSON(fc, resolved);
+        // (c) 渲染
+        const cacheKey = createHash('md5').update(JSON.stringify({options: params.options, templateJson: params.templateJson})).digest('hex');
+        const fc = this.#getCanvas(pw, ph, cacheKey);
+
+        if (fc.getObjects().length > 0) {
+            // 缓存命中且有对象 → 增量更新 text / src
+            this.#smartUpdate(fc, resolved);
+        } else {
+            await this.#loadJSON(fc, resolved);
+        }
         perf.mark("fabric");
 
-        const raw = (fc as unknown as {lowerCanvasEl: any}).lowerCanvasEl;
-        const pixels = raw.toBufferSync('raw');
+        // (d) 编码输出
+        const skCanvas = (fc as unknown as {lowerCanvasEl: any}).lowerCanvasEl;
 
-        perf.mark("pixels");
-
-        const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
-        const ct = compressLevel === 0 ? CompressionType.Default
-            : compressLevel === 1 ? CompressionType.Best : CompressionType.Fast;
-        const result: Buffer = format === "jpeg"
-            ? await tx.jpeg(quantity) : await tx.png({compressionType: ct});
-        perf.mark("encode");
+        let result: Buffer;
+        if (format === "png" ) {
+            // PNG因为无法控制压缩率导致必须手动采样再压缩才会更快，因此先用 raw buffer + @napi-rs/image
+            const pixels = skCanvas.toBufferSync("raw");
+            perf.mark("pixels");
+            const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
+            result = await tx.png({compressionType: compressLevel == 0 ? CompressionType.Default : (compressLevel == 1 ? CompressionType.Best : CompressionType.Fast)});
+            perf.mark("encode");
+        } else {
+            // 其他格式：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
+            result = skCanvas.toBufferSync(format, {quality: quantity/100} as any);
+            perf.mark("pixels+encode");
+        }
 
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
         return result;
@@ -260,6 +273,28 @@ export class FabricEngine implements Engine {
                 }
             }
         }));
+    }
+
+    /**
+     * 增量更新画布对象（跳过全量 loadFromJSON）
+     *
+     * @param skCanvas - Fabric 画布实例
+     * @param resolvedJson - 变量替换后的模板 JSON
+     */
+    #smartUpdate(skCanvas: StaticCanvas, resolvedJson: FabricTemplateJson): void {
+        const existing = skCanvas.getObjects();
+        for (const obj of resolvedJson.objects) {
+            if (!obj.id) continue;
+            const target = existing.find((o: any) => o.id === obj.id);
+            if (!target) continue;
+            const type = (obj.type ?? '').toLowerCase();
+            if (type.includes('text')) {
+                (target as any).set('text', obj.text ?? '');
+            } else if (type === 'image') {
+                (target as any).set('src', obj.src ?? '');
+            }
+        }
+        skCanvas.renderAll();
     }
 
     #loadJSON(skCanvas: StaticCanvas, json: FabricTemplateJson): Promise<void> {
@@ -296,13 +331,12 @@ export class FabricEngine implements Engine {
         });
     }
 
-    #getCanvas(w: number, h: number): StaticCanvas {
-        const key = `${w}x${h}`;
+    #getCanvas(w: number, h: number, key: string): StaticCanvas {
         if (this.#pool.has(key)) {
             const c = this.#pool.get(key)!;
             this.#pool.delete(key);
             this.#pool.set(key, c);
-            c.clear();
+            if (c.getObjects().length === 0) c.clear();
             return c;
         }
         if (this.#pool.size >= FabricEngine.#POOL_MAX) {
