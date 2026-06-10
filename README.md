@@ -312,27 +312,27 @@ export async function startServer(port: number): Promise<void> {
 
 ## Docker
 
-每个引擎有独立的 Dockerfile，多阶段构建（builder → runtime），仅打包引擎自身代码。
+每个引擎的包目录下有独立的 Dockerfile，多阶段构建（builder → runtime），仅打包引擎自身代码。
 
 ```bash
 # Leafer（默认）
-docker build -t render-server:leafer -f Dockerfile.leafer .
+docker build -t render-server:leafer -f packages/leafer-engine/Dockerfile .
 docker run -p 3000:3000 render-server:leafer
 
 # Fabric 5
-docker build -t render-server:fabric5 -f Dockerfile.fabric5 .
+docker build -t render-server:fabric5 -f packages/fabric5-engine/Dockerfile .
 docker run -p 3000:3000 render-server:fabric5
 
 # Fabric 7
-docker build -t render-server:fabric -f Dockerfile.fabric .
+docker build -t render-server:fabric -f packages/fabric-engine/Dockerfile .
 docker run -p 3000:3000 render-server:fabric
 
 # Playwright（含 Chromium）
-docker build -t render-server:playwright -f Dockerfile.playwright .
+docker build -t render-server:playwright -f packages/playwright-engine/Dockerfile .
 docker run -p 3000:3000 render-server:playwright
 
 # Konva
-docker build -t render-server:konva -f Dockerfile.konva .
+docker build -t render-server:konva -f packages/konva-engine/Dockerfile .
 docker run -p 3000:3000 render-server:konva
 ```
 
