@@ -35,7 +35,9 @@ RUN npx tsc -b packages/core packages/server packages/playwright-engine && \
 FROM docker.m.daocloud.io/library/node:23-slim
 
 # 安装 Chromium
-RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
+    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+    apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         libc6-dev \
         chromium \
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
