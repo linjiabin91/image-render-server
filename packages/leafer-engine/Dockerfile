@@ -1,8 +1,8 @@
 FROM docker.m.daocloud.io/library/node:23-slim AS builder
 
 # 替换为国内源 + 安装编译依赖（--fix-missing 解决 Debian CDN Hash Sum mismatch）
-RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
+    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         python3 make g++ \
         libc6-dev \
