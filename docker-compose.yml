@@ -1,8 +1,14 @@
+x-common-args: &common-args
+  BASE_IMAGE: docker.m.daocloud.io/library/node:23-slim
+  DEBIAN_MIRROR: mirrors.aliyun.com
+
 services:
   leafer:
     build:
       context: .
       dockerfile: packages/leafer-engine/Dockerfile
+      args:
+        <<: *common-args
     ports:
       - "3000:3000"
 
@@ -10,6 +16,8 @@ services:
     build:
       context: .
       dockerfile: packages/fabric5-engine/Dockerfile
+      args:
+        <<: *common-args
     ports:
       - "3001:3000"
 
@@ -17,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: packages/fabric-engine/Dockerfile
+      args:
+        <<: *common-args
     ports:
       - "3002:3000"
 
@@ -24,6 +34,8 @@ services:
     build:
       context: .
       dockerfile: packages/playwright-engine/Dockerfile
+      args:
+        <<: *common-args
     ports:
       - "3003:3000"
 
@@ -31,5 +43,7 @@ services:
     build:
       context: .
       dockerfile: packages/konva-engine/Dockerfile
+      args:
+        <<: *common-args
     ports:
       - "3004:3000"
