@@ -2,8 +2,6 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: render-server
-  labels:
-    app: render-server
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
