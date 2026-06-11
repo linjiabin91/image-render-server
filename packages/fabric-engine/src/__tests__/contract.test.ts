@@ -17,7 +17,7 @@ describe('FabricEngine (v7) contract', () => {
     it('render throws before init', async () => {
         const engine = new FabricEngine();
         await expect(engine.render({
-            options: {} as any,
+            options: {} as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- 测试预初始化守卫
             templateJson: { version: '7.0.0', objects: [] },
             variables: {},
         })).rejects.toThrow(/not initialized/i);

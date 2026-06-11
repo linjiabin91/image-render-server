@@ -17,7 +17,7 @@ describe('KonvaEngine contract', () => {
     it('render throws before init', async () => {
         const engine = new KonvaEngine();
         await expect(engine.render({
-            options: {} as any,
+            options: {} as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- 测试预初始化守卫
             templateJson: { width: 100, height: 100, children: [] },
             variables: {},
         })).rejects.toThrow('not initialized');
