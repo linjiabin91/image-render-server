@@ -4,6 +4,14 @@
   "type": "module",
   "description": "Multi-engine image rendering server supporting Leafer, Fabric.js, Konva, and Playwright",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/gabinlin/render-server"
+  },
+  "bugs": {
+    "url": "https://gitee.com/gabinlin/render-server/issues"
+  },
+  "homepage": "https://gitee.com/gabinlin/render-server",
   "engines": {
     "node": ">=18"
   },
