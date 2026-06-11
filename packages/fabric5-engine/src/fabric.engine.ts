@@ -27,16 +27,35 @@ const __dirname = dirname(__filename);
 const fontsDir = resolve(__dirname, '../../core/fonts');
 
 if (existsSync(fontsDir)) {
+    // 按族名前缀分组：AlibabaPuHuiTi-3-45-Light.ttf → 族名 AlibabaPuHuiTi-3
+    const fontGroups = new Map<string, string[]>();
     for (const file of readdirSync(fontsDir)) {
         const lower = file.toLowerCase();
         if (!lower.endsWith('.ttf') && !lower.endsWith('.otf')) continue;
         const fullPath = resolve(fontsDir, file);
         if (!statSync(fullPath).isFile()) continue;
         const name = file.slice(0, file.length - (lower.endsWith('.ttf') ? 4 : 4));
+        // 文件名格式：{familyPrefix}-{weightIndex}-{weightName}
+        // 去掉最后两段得到族名前缀
+        const parts = name.split('-');
+        const family = parts.length >= 3 ? parts.slice(0, -2).join('-') : name;
+        if (!fontGroups.has(family)) fontGroups.set(family, []);
+        fontGroups.get(family)!.push(fullPath);
+    }
+    for (const [family, paths] of fontGroups) {
         try {
-            FontLibrary.use(name, fullPath);
+            FontLibrary.use(family, paths.length === 1 ? paths[0] : paths);
         } catch (err) {
-            logger.warn({err, font: name}, "font registration failed");
+            logger.warn({err, font: family}, "font group registration failed");
+        }
+        // 同时按原始完整名称单个注册，兼容旧模板 fontFamily: 'AlibabaPuHuiTi-3-45-Light'
+        for (const path of paths) {
+            const name = path.split('/').pop()!.replace(/\.(ttf|otf)$/i, '');
+            try {
+                FontLibrary.use(name, path);
+            } catch (err) {
+                logger.warn({err, font: name}, "font alias registration failed");
+            }
         }
     }
 }
@@ -59,6 +78,18 @@ const patchCanvasElement = (nodeCanvas: Canvas): Canvas => {
 };
 
 fabric.util.createCanvasElement = () => patchCanvasElement(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
+
+// ── Font weight 兼容 patch ────────────────────────────────────────────────
+//
+// skia-canvas 的 CSS font 匹配比浏览器严格，fontWeight 不匹配时会回退到
+// 系统字体而不是自动合成（faux bold）。此处去掉 fontWeight/fontStyle，
+// 让 Skia 用分组注册的默认权重匹配，避免因权重不匹配导致回退。
+// 注意：若日后需支持 fontWeight 切换变体，可删除此 patch。
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(fabric.Text.prototype as any)._getFontString = function (this: Record<string, any>) {
+    return this.fontSize + 'px "' + this.fontFamily + '"';
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 图片加载失败追踪

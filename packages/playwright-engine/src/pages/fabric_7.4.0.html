@@ -3,6 +3,17 @@
 <head>
   <meta charset="utf-8">
   <style>
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-35-Thin.ttf') format('truetype'); font-weight: 35; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.woff2') format('woff2'); font-weight: 45; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-55-Regular.ttf') format('truetype'); font-weight: 55; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-65-Medium.ttf') format('truetype'); font-weight: 65; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-75-SemiBold.ttf') format('truetype'); font-weight: 75; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-85-Bold.ttf') format('truetype'); font-weight: 85; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-95-ExtraBold.ttf') format('truetype'); font-weight: 95; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-105-Heavy.ttf') format('truetype'); font-weight: 105; }
+  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-115-Black.ttf') format('truetype'); font-weight: 115; }
+
+  /* 兼容旧模板：独立 font-family 别名 */
   @font-face {
     font-family: 'AlibabaPuHuiTi-3-45-Light';
     src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.woff2') format('woff2');
@@ -15,7 +26,7 @@
   </style>
 </head>
 <body>
-<canvas id="renderCanvas"></canvas>
+<canvas id="renderCanvas" style="font-weight: "></canvas>
 <script src="fabric/7.4.0/fabric.min.js"></script>
 <script>
 /**
