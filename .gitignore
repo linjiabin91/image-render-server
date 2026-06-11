@@ -9,3 +9,4 @@ dist
 .env.*
 *.log
 .pnpm-debug.log
+/CLAUDE.md

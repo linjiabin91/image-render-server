@@ -104,7 +104,7 @@ export class LeaferEngine implements Engine {
             perf.mark("preload");
             leafer.clear();
             if (resolvedJson.children) {
-                leafer.add(resolvedJson.children as unknown as IUIInputData);
+                leafer.add(resolvedJson.children as unknown as IUIInputData[]);
             }
             this.#cacheKeyMap.set(leafer, cacheKey);
         }
@@ -121,7 +121,7 @@ export class LeaferEngine implements Engine {
             result = tx.pngSync({ compressionType: CompressionType.Default });
             perf.mark("encode");
         } else {
-            // 其他格式：leafer 原生导出，跳过 getImageData + @napi-rs/image 步骤
+            // 其他格式：leafer 原生导出
             const leaferFormat = format === 'jpeg' ? 'jpg' : format;
             const exportResult = await (leafer as any).export(leaferFormat, {quality: quantity});
             const data = (exportResult as any).data;
