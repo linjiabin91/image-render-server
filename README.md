@@ -1,5 +1,12 @@
 # render-server
 
+<p>
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node">
+  <img src="https://img.shields.io/badge/pnpm-8.4.0-orange" alt="pnpm">
+  <img src="https://img.shields.io/badge/TypeScript-6.0-3178C6" alt="TypeScript">
+</p>
+
 基于多种渲染引擎的图片渲染服务。通过 Piscina 线程池隔离，支持模板 JSON 驱动的场景图渲染。
 
 ## 架构
