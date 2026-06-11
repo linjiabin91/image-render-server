@@ -1,5 +1,5 @@
 import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
-import {Canvas, Image, loadImage} from 'skia-canvas';
+import {Canvas, FontLibrary, Image, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas} from 'fabric/node';
 import {createHash} from 'node:crypto';
@@ -13,9 +13,33 @@ import {
     unlinkSync,
     writeFileSync
 } from 'node:fs';
-import {resolve} from 'node:path';
+import {dirname, resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {LRUCache} from 'lru-cache';
+import {fileURLToPath} from "node:url";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 字体管理
+// ═══════════════════════════════════════════════════════════════════════════
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const fontsDir = resolve(__dirname, '../../core/fonts');
+
+if (existsSync(fontsDir)) {
+    for (const file of readdirSync(fontsDir)) {
+        const lower = file.toLowerCase();
+        if (!lower.endsWith('.ttf') && !lower.endsWith('.otf')) continue;
+        const fullPath = resolve(fontsDir, file);
+        if (!statSync(fullPath).isFile()) continue;
+        const name = file.slice(0, file.length - (lower.endsWith('.ttf') ? 4 : 4));
+        try {
+            FontLibrary.use(name, fullPath);
+        } catch (err) {
+            logger.warn({err, font: name}, "font registration failed");
+        }
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 多级图片缓存（进程内 LRU → 磁盘 → HTTP）
