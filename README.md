@@ -153,6 +153,15 @@ curl -X POST http://127.0.0.1:3000/api/render \
 | engine | string | — | 引擎标识（leafer/fabric5/playwright/konva） |
 | version | string | — | 引擎版本/模板版本 |
 
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PORT` | `3000` | 服务监听端口 |
+| `LOG_LEVEL` | `info` | Pino 日志级别（trace/debug/info/warn/error/fatal） |
+| `LOG_PRETTY` | 未设置 | 设为 `true` 启用 pino-pretty 格式化日志输出（开发用） |
+| `IMAGE_FETCH_TIMEOUT` | `10000` | 图片下载超时（毫秒） |
+
 ## 模板格式
 
 ### Leafer / Konva 格式（tag 标识）
