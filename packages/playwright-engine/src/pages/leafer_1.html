@@ -27,7 +27,8 @@
  * @param {Object} params.templateJson - 变量替换后的模板 JSON
  * @param {string} params.cacheKey - 模板 MD5（用于增量更新判断）
  */
-function draw(params) {
+async function draw(params) {
+  await document.fonts.load("12px "AlibabaPuHuiTi-3-45-Light"");
     // 用户自定义渲染逻辑
     // 第一版为空实现 — 页面截图将输出空白画布
     return;

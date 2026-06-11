@@ -37,6 +37,7 @@ var _leafer = null;
 var _cacheKey = null;
 
 async function draw(params) {
+  await document.fonts.load("12px \"AlibabaPuHuiTi-3-45-Light\"");
   var options = params.options;
   var templateJson = params.templateJson;
   var cacheKey = params.cacheKey;

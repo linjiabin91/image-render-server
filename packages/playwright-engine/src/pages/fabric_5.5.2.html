@@ -101,6 +101,7 @@ let _canvas = null;
 let _cacheKey = null;
 
 async function draw(params) {
+  await document.fonts.load("12px \"AlibabaPuHuiTi-3-45-Light\"");
   const { options, templateJson, cacheKey } = params;
   const pixelRatio = options.pixelRatio || 1;
   const width = Math.ceil(options.width * pixelRatio);
