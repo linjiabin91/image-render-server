@@ -395,6 +395,57 @@ docker compose up -d <service>
 # 端口映射: leafer=3000, fabric5=3001, fabric=3002, playwright=3003, konva=3004
 ```
 
+## Kubernetes
+
+项目使用 Kustomize 管理 K8s 配置。`k8s/` 目录结构：
+
+```
+k8s/
+├── base/                          # 通用模板
+│   ├── kustomization.yaml
+│   ├── configmap.yaml             # 日志级别、图片超时等
+│   ├── deployment.yaml            # 部署（2 副本 + 探针 + 资源限制）
+│   ├── service.yaml               # ClusterIP 服务
+│   └── hpa.yaml                   # 自动扩缩容（CPU 70%，2-10 副本）
+└── overlays/                      # 各引擎一行配置切换
+    ├── leafer/kustomization.yaml
+    ├── fabric5/kustomization.yaml
+    ├── fabric/kustomization.yaml
+    ├── playwright/kustomization.yaml
+    └── konva/kustomization.yaml
+```
+
+使用方式：
+
+```bash
+# 1. 构建并推送镜像（先修改 overlay 中的 registry 地址）
+docker build -t registry/render-server:leafer -f packages/leafer-engine/Dockerfile .
+docker push registry/render-server:leafer
+
+# 2. 部署指定引擎
+kubectl apply -k k8s/overlays/leafer/
+
+# 3. 多个引擎可同时运行（namePrefix 避免资源名冲突）
+kubectl apply -k k8s/overlays/leafer/
+kubectl apply -k k8s/overlays/konva/
+
+# 4. 查看生成的完整 YAML
+kubectl kustomize k8s/overlays/leafer/
+
+# 5. 扩容（手动调整副本数）
+kubectl scale deployment leafer-render-server --replicas=5
+```
+
+每个 overlay 只比 base 多三行配置，修改镜像地址只需要改一处：
+
+```yaml
+# k8s/overlays/leafer/kustomization.yaml
+images:
+  - name: render-server
+    newName: registry/render-server    # 改成你的镜像仓库
+    newTag: leafer                      # 改成你的镜像 tag
+```
+
 ### Dockerfile 说明
 
 - **多阶段构建**：builder 阶段安装编译工具（python3, make, g++）编译原生模块（@napi-rs/canvas、skia-canvas），runtime 阶段只保留运行时依赖
