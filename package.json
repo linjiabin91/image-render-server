@@ -13,6 +13,7 @@
     "lint:fix": "eslint packages/ --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "start": "node packages/leafer-engine/dist/server.js",
     "start:konva": "node packages/konva-engine/dist/server.js",
     "benchmark": "node packages/benchmark/dist/index.js"
