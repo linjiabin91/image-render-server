@@ -401,4 +401,4 @@ docker compose up -d <service>
 - **依赖缓存**：先复制所有 package.json 执行 `pnpm install`，利用 Docker 层缓存加速重复构建
 - **Workspace 兼容**：复制全部 engine 的 package.json 以满足 pnpm workspaces 解析，但仅复制目标引擎源码
 - **镜像加速**：默认走官方源（全球化可用），国内用户通过 `--build-arg BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim --build-arg DEBIAN_MIRROR=mirrors.aliyun.com` 切换国内加速
-- **Playwright**：runtime 镜像安装 chromium 系统包，通过 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 跳过浏览器下载
+- **Playwright**：runtime 使用微软官方 `mcr.microsoft.com/playwright` 镜像，预装 Chromium/WebKit/Firefox 及所有系统依赖
