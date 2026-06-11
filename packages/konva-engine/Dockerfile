@@ -1,5 +1,5 @@
-ARG BASE_IMAGE=node:23-slim
-ARG DEBIAN_MIRROR=deb.debian.org
+ARG BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim
+ARG DEBIAN_MIRROR=mirrors.aliyun.com
 
 FROM ${BASE_IMAGE} AS builder
 

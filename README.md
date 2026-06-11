@@ -451,5 +451,5 @@ images:
 - **多阶段构建**：builder 阶段安装编译工具（python3, make, g++）编译原生模块（@napi-rs/canvas、skia-canvas），runtime 阶段只保留运行时依赖
 - **依赖缓存**：先复制所有 package.json 执行 `pnpm install`，利用 Docker 层缓存加速重复构建
 - **Workspace 兼容**：复制全部 engine 的 package.json 以满足 pnpm workspaces 解析，但仅复制目标引擎源码
-- **镜像加速**：默认走官方源（全球化可用），国内用户通过 `--build-arg BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim --build-arg DEBIAN_MIRROR=mirrors.aliyun.com` 切换国内加速
+- **镜像加速**：默认使用国内加速源（daocloud + aliyun），境外 CI 通过 `--build-arg BASE_IMAGE=node:23-slim --build-arg DEBIAN_MIRROR=deb.debian.org` 切换官方源
 - **Playwright**：runtime 使用微软官方 `mcr.microsoft.com/playwright` 镜像，预装 Chromium/WebKit/Firefox 及所有系统依赖
