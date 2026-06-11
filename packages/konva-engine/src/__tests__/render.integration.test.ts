@@ -4,6 +4,7 @@
  * 通过 pnpm test:integration 执行。
  */
 import { describe, expect, it } from 'vitest';
+import { toQuantity } from '@render-server/core';
 import { KonvaEngine, type KonvaTemplateJson } from '../konva.engine.js';
 
 describe('KonvaEngine render', () => {
@@ -21,7 +22,7 @@ describe('KonvaEngine render', () => {
             };
 
             const result = await engine.render({
-                options: { width: 200, height: 100, format: 'png', quantity: 80, compressLevel: 0, pixelRatio: 1 },
+                options: { width: 200, height: 100, format: 'png', quantity: toQuantity(80), compressLevel: 0, pixelRatio: 1 },
                 templateJson: template,
                 variables: {},
             });
