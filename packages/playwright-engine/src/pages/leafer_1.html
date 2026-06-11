@@ -5,7 +5,7 @@
   <style>
   @font-face {
     font-family: 'AlibabaPuHuiTi-3-45-Light';
-    src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.ttf') format('truetype');
+    src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.woff2') format('woff2');
   }
 
 
@@ -28,7 +28,7 @@
  * @param {string} params.cacheKey - 模板 MD5（用于增量更新判断）
  */
 async function draw(params) {
-  await document.fonts.load("12px "AlibabaPuHuiTi-3-45-Light"");
+  await document.fonts.load("12px \"AlibabaPuHuiTi-3-45-Light\"");
     // 用户自定义渲染逻辑
     // 第一版为空实现 — 页面截图将输出空白画布
     return;
