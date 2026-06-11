@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG BASE_IMAGE=node:23-slim
 ARG DEBIAN_MIRROR=deb.debian.org
 
