@@ -1,5 +1,6 @@
 {
   "name": "@render-server/konva-engine",
+  "description": "Konva 渲染引擎 — 基于 konva + @napi-rs/canvas 的图片渲染实现",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

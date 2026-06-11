@@ -1,5 +1,6 @@
 {
   "name": "@render-server/leafer-engine",
+  "description": "Leafer 渲染引擎 — 基于 @leafer-ui/node 的图片渲染实现",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

@@ -1,5 +1,7 @@
 {
   "name": "@render-server/server",
+  "description": "通用 HTTP 服务层 — Fastify + Piscina 线程池，为渲染引擎提供 POST /api/render 接口",
+  "keywords": ["image", "rendering", "fastify", "piscina", "server"],
   "private": false,
   "type": "module",
   "main": "dist/index.js",

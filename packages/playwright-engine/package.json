@@ -1,5 +1,6 @@
 {
   "name": "@render-server/playwright-engine",
+  "description": "Playwright 浏览器渲染引擎 — 基于 Chromium 无头浏览器的截图渲染实现",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

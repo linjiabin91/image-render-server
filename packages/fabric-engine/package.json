@@ -1,5 +1,6 @@
 {
   "name": "@render-server/fabric-engine",
+  "description": "Fabric.js 7 渲染引擎 — 基于 fabric@7 + skia-canvas 的图片渲染实现",
   "private": true,
   "type": "module",
   "main": "dist/server.js",
