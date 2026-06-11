@@ -2,10 +2,15 @@ ARG BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim
 ARG DEBIAN_MIRROR=mirrors.aliyun.com
 
 FROM ${BASE_IMAGE} AS builder
+ARG DEBIAN_MIRROR
 
-# 替换为国内源（默认官方源，通过 --build-arg DEBIAN_MIRROR=mirrors.aliyun.com 切换）
-RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+# 写入软件源（通过 --build-arg DEBIAN_MIRROR=deb.debian.org 切换官方源）
+RUN printf "Types: deb
+URIs: http://${DEBIAN_MIRROR}/debian
+Suites: bookworm bookworm-updates
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+" > /etc/apt/sources.list.d/debian.sources && \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         python3 make g++ \
         libc6-dev \
@@ -16,7 +21,7 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# 依赖层 — 复制所有 workspace package.json
+# 依赖层
 COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
@@ -27,7 +32,7 @@ COPY packages/playwright-engine/package.json packages/playwright-engine/
 COPY packages/konva-engine/package.json packages/konva-engine/
 RUN pnpm install
 
-# 源码层 — 仅复制当前引擎所需（含 tsconfig，tsc -b 需要子包 tsconfig.json）
+# 源码层
 COPY tsconfig.json .
 COPY packages/core/tsconfig.json packages/core/
 COPY packages/server/tsconfig.json packages/server/
@@ -42,9 +47,14 @@ RUN pnpm tsc -b packages/core packages/server packages/fabric5-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
 FROM ${BASE_IMAGE}
+ARG DEBIAN_MIRROR
 
-RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+RUN printf "Types: deb
+URIs: http://${DEBIAN_MIRROR}/debian
+Suites: bookworm bookworm-updates
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+" > /etc/apt/sources.list.d/debian.sources && \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         libc6-dev \
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \

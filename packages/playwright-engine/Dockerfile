@@ -2,10 +2,10 @@ ARG BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim
 ARG DEBIAN_MIRROR=mirrors.aliyun.com
 
 FROM ${BASE_IMAGE} AS builder
+ARG DEBIAN_MIRROR
 
 # 替换为国内源 + 安装编译依赖
-RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+RUN printf "Types: deb\nURIs: http://${DEBIAN_MIRROR}/debian\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n" > /etc/apt/sources.list.d/debian.sources && \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         python3 make g++ \
         libc6-dev \
@@ -42,6 +42,7 @@ RUN pnpm tsc -b packages/core packages/server packages/playwright-engine && \
 # ── Runtime ────────────────────────────────────────────────────────────────
 # 微软官方 Playwright 镜像，预装 Chromium/WebKit/Firefox 及所有系统依赖
 FROM mcr.microsoft.com/playwright:v1.60.0-noble
+ARG DEBIAN_MIRROR
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
