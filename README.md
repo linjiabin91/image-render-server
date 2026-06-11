@@ -38,7 +38,10 @@ render-server/
 │   │       └── server.ts
 │   │
 │   ├── fabric-engine/             # Fabric.js 7 渲染引擎
-│   │   └── ...
+│   │   └── src/
+│   │       ├── fabric.engine.ts   # fabric@7 + skia-canvas
+│   │       ├── render.worker.ts
+│   │       └── server.ts
 │   │
 │   ├── playwright-engine/         # Playwright 无头浏览器渲染引擎
 │   │   └── src/
@@ -51,15 +54,55 @@ render-server/
 │   │       ├── render.worker.ts
 │   │       └── server.ts
 │   │
-│   └── konva-engine/              # Konva 渲染引擎（新增）
+│   └── konva-engine/              # Konva 渲染引擎
 │       └── src/
 │           ├── konva.engine.ts    # konva + @napi-rs/canvas
 │           ├── render.worker.ts
 │           └── server.ts
 │
-├── Dockerfile
-└── package.json                   # npm workspaces
+├── docker-compose.yml
+├── eslint.config.js
+├── vitest.config.ts
+├── pnpm-workspace.yaml
+└── package.json
 ```
+
+## 引擎介绍
+
+### [Leafer](https://leaferjs.com/) — `packages/leafer-engine`
+
+国产高性能 Canvas 2D 渲染引擎，专为图形编辑场景设计。Node.js 端通过 `@leafer-ui/node` 运行。
+
+- **官网**：[https://leaferjs.com](https://leaferjs.com)
+- **GitHub**：[https://github.com/leaferjs/leafer](https://github.com/leaferjs/leafer)
+- **模板格式**：LeaferTemplateJson（tag + url 标识节点和图片来源）
+
+### [Fabric.js](http://fabricjs.com/) — `packages/fabric5-engine` / `packages/fabric-engine`
+
+老牌 Canvas 库，生态成熟。本服务同时支持 Fabric 5.5.2 和 Fabric 7.x 两个版本。
+
+- **官网**：[http://fabricjs.com](http://fabricjs.com)
+- **文档**：[http://fabricjs.com/docs](http://fabricjs.com/docs)
+- **GitHub**：[https://github.com/fabricjs/fabric.js](https://github.com/fabricjs/fabric.js)
+- **模板格式**：FabricTemplateJson（type + objects 数组结构）
+
+### [Konva](https://konvajs.org/) — `packages/konva-engine`
+
+桌面级 Canvas 2D 框架，API 设计简洁，适合场景图渲染。Node.js 端通过 `@napi-rs/canvas` 运行。
+
+- **官网**：[https://konvajs.org](https://konvajs.org)
+- **文档**：[https://konvajs.org/docs](https://konvajs.org/docs)
+- **GitHub**：[https://github.com/konvajs/konva](https://github.com/konvajs/konva)
+- **模板格式**：KonvaTemplateJson（兼容 tag 和 className 两种标识）
+
+### [Playwright](https://playwright.dev/) — `packages/playwright-engine`
+
+微软出品的无头浏览器自动化框架。本服务通过 Playwright 控制 Chromium 加载各引擎的 HTML 页面并截图输出。
+
+- **官网**：[https://playwright.dev](https://playwright.dev)
+- **文档**：[https://playwright.dev/docs](https://playwright.dev/docs)
+- **GitHub**：[https://github.com/microsoft/playwright](https://github.com/microsoft/playwright)
+- **模板格式**：动态选择（由 `options.engine` + `options.version` 决定加载哪个 HTML 页面）
 
 ## 引擎对比
 
@@ -67,7 +110,7 @@ render-server/
 |------|------|----------|----------|----------|
 | leafer | Node.js | @leafer-ui/node + @napi-rs/canvas | tag 标识节点, url 标识图片 | text/url 增量 |
 | fabric5 | Node.js | fabric@5 + skia-canvas | type/objects 数组 | text/src 增量 |
-| fabric7 | Node.js | fabric@7 | 同上 | 同上 |
+| fabric7 | Node.js | fabric@7 + skia-canvas | type/objects 数组 | text/src 增量 |
 | playwright | 浏览器 | Chromium + page.screenshot() | 动态加载各引擎 HTML 页面 | 页面内增量 |
 | konva | Node.js | konva + @napi-rs/canvas | tag/className 标识, url/image 标识图片 | text/image 增量 |
 
@@ -93,24 +136,27 @@ POST /api/render
 
 ```bash
 # 安装依赖
-npm ci
+pnpm install
 
 # 构建所有包
-npm run build
+pnpm run build
+
+# 运行所有测试
+pnpm run test
 
 # 启动引擎
 
 ## Leafer（默认，端口 3000）
-npm start
+pnpm start
 
 ## Fabric 5
-cd packages/fabric5-engine && npm start
+cd packages/fabric5-engine && pnpm start
 
 ## Konva（端口 3000）
-npm run start:konva
+pnpm run start:konva
 
 ## Playwright（需先启动 Chromium）
-cd packages/playwright-engine && npm start
+cd packages/playwright-engine && pnpm start
 ```
 
 ### 测试渲染
@@ -232,17 +278,7 @@ Konva 引擎同时兼容两种标识方式：
 - **类型标识**：`tag`（leafer 格式）或 `className`（fabric 格式）
 - **图片来源**：`url`（leafer）、`image`（fabric）、`fill.url`（fill 填充）
 
-## 当前引擎
-
-| 包 | 引擎 | 模板格式 | 状态 |
-|----|------|----------|------|
-| `packages/leafer-engine` | Leafer 2.1.4 | LeaferTemplateJson (tag + url) | 生产 |
-| `packages/fabric5-engine` | Fabric 5.5.2 | FabricTemplateJson (type + src) | 生产 |
-| `packages/fabric-engine` | Fabric 7.x | FabricTemplateJson | 开发 |
-| `packages/playwright-engine` | Playwright Chromium | 动态（由 engine/version 决定） | 生产 |
-| `packages/konva-engine` | Konva 9.3.0 | KonvaTemplateJson (tag/className + url/image) | 新增 |
-
-### Playwright 引擎
+## Playwright 引擎
 
 Playwright 引擎通过 `engine` 和 `version` 选项动态选择 HTML 页面：
 
@@ -253,21 +289,20 @@ options.version = "9.3.0"   → library at pages/konva/9.3.0/konva.min.js
 
 引擎在浏览器中加载 HTML 页面，调用页面的 `draw({options, templateJson, cacheKey})` 函数渲染，然后 `page.screenshot()` 输出。
 
-### Konva 引擎
+支持的页面矩阵：
 
-Konva 引擎支持完整的场景图渲染：
-- **Text** — fontSize、fontFamily、fill 颜色
-- **Image** — 预加载 + 缓存，image/url/fill.url 三种来源
-- **Group/Layer** — 递归嵌套子节点
-- **Smart Update** — 按数组索引匹配，增量更新 text/image 属性
-- **Canvas 池** — LRU 淘汰，上限 10 实例
-- **图片缓存** — 进程内 Map，10 秒超时
+| engine | version | HTML 页面 |
+|--------|---------|-----------|
+| leafer | 2.1.4 | `leafer_2.1.4.html` |
+| fabric5 | 5.5.2 | `fabric_5.5.2.html` |
+| fabric7 | 7.4.0 | `fabric_7.4.0.html` |
+| konva | 9.3.0 | `konva_9.3.0.html` |
 
 ## 性能
 
 每个 Worker 持有独立的引擎实例：
-- **leafer/fabric/konva**：LRU 画布池 + MD5 缓存键 + 智能更新
-- **playwright**：LRU 页面池 + 按模板 MD5 复用页面
+- Node.js 引擎（leafer/fabric/konva）：LRU 画布池 + MD5 缓存键 + 智能更新
+- Playwright 引擎：LRU 页面池 + 按模板 MD5 复用页面
 
 PNG 输出统一走 `getImageData` + `@napi-rs/image` 编码，提供 0-10 压缩级别控制。
 
@@ -352,9 +387,18 @@ docker build -t render-server:konva -f packages/konva-engine/Dockerfile .
 docker run -p 3000:3000 render-server:konva
 ```
 
+### Docker-compose（本地开发）
+
+```bash
+docker compose up -d <service>
+# 可选服务: leafer, fabric5, fabric, playwright, konva
+# 端口映射: leafer=3000, fabric5=3001, fabric=3002, playwright=3003, konva=3004
+```
+
 ### Dockerfile 说明
 
-- **多阶段构建**：builder 阶段安装编译工具（python3, make, g++）编译原生模块（@napi-rs/canvas、skia-canvas），runtime 阶段只保留 libc6-compat
-- **依赖缓存**：先复制所有 package.json 执行 `npm ci`，利用 Docker 层缓存加速重复构建
-- **Workspace 兼容**：复制全部 engine 的 package.json 以满足 npm workspaces 解析，但仅复制目标引擎源码
+- **多阶段构建**：builder 阶段安装编译工具（python3, make, g++）编译原生模块（@napi-rs/canvas、skia-canvas），runtime 阶段只保留运行时依赖
+- **依赖缓存**：先复制所有 package.json 执行 `pnpm install`，利用 Docker 层缓存加速重复构建
+- **Workspace 兼容**：复制全部 engine 的 package.json 以满足 pnpm workspaces 解析，但仅复制目标引擎源码
+- **镜像加速**：默认走官方源（全球化可用），国内用户通过 `--build-arg BASE_IMAGE=docker.m.daocloud.io/library/node:23-slim --build-arg DEBIAN_MIRROR=mirrors.aliyun.com` 切换国内加速
 - **Playwright**：runtime 镜像安装 chromium 系统包，通过 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 跳过浏览器下载
