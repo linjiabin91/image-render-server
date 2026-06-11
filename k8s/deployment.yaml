@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: render-server
+  labels:
+    app: render-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: render-server
+  template:
+    metadata:
+      labels:
+        app: render-server
+    spec:
+      containers:
+        - name: render-server
+          # 构建镜像时需要指定引擎，例如：
+          # docker build -t render-server:leafer -f packages/leafer-engine/Dockerfile .
+          image: render-server:leafer
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: render-server-config
+                  key: LOG_LEVEL
+            - name: IMAGE_FETCH_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: render-server-config
+                  key: IMAGE_FETCH_TIMEOUT
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: render-server
+  labels:
+    app: render-server
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app: render-server
