@@ -6,7 +6,7 @@
   "types": "dist/server.d.ts",
   "scripts": {
     "build": "tsc && rm -rf dist/pages && cp -r src/pages dist/",
-    "start": "npm run build && LOG_PRETTY=true node dist/server.js"
+    "start": "pnpm run build && LOG_PRETTY=true node dist/server.js"
   },
   "dependencies": {
     "@render-server/core": "*",
