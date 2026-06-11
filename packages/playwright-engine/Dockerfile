@@ -41,16 +41,8 @@ RUN pnpm tsc -b packages/core packages/server packages/playwright-engine && \
     cp -r packages/playwright-engine/src/pages packages/playwright-engine/dist/
 
 # ── Runtime ────────────────────────────────────────────────────────────────
-FROM ${BASE_IMAGE}
-
-# 安装 Chromium
-RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
-    apt-get update && apt-get install -y --no-install-recommends --fix-missing \
-        libc6-dev \
-        chromium \
-        libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# 微软官方 Playwright 镜像，预装 Chromium/WebKit/Firefox 及所有系统依赖
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
