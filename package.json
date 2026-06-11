@@ -2,10 +2,15 @@
   "name": "render-server",
   "license": "MIT",
   "type": "module",
+  "description": "Multi-engine image rendering server supporting Leafer, Fabric.js, Konva, and Playwright",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc -b packages/core packages/server packages/leafer-engine packages/fabric5-engine packages/fabric-engine packages/playwright-engine packages/konva-engine",
     "lint": "eslint packages/",
+    "lint:fix": "eslint packages/ --fix",
     "start": "node packages/leafer-engine/dist/server.js",
     "start:konva": "node packages/konva-engine/dist/server.js",
     "benchmark": "node packages/benchmark/dist/index.js"

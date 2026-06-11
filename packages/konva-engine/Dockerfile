@@ -1,8 +1,12 @@
-FROM docker.m.daocloud.io/library/node:23-slim AS builder
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=node:23-slim
+ARG DEBIAN_MIRROR=deb.debian.org
+
+FROM ${BASE_IMAGE} AS builder
 
 # 替换为国内源 + 安装编译依赖（--fix-missing 解决 Debian CDN Hash Sum mismatch）
-RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         python3 make g++ \
         libc6-dev \
@@ -35,10 +39,10 @@ COPY packages/core/fonts packages/core/fonts
 RUN pnpm tsc -b packages/core packages/server packages/konva-engine
 
 # ── Runtime ────────────────────────────────────────────────────────────────
-FROM docker.m.daocloud.io/library/node:23-slim
+FROM ${BASE_IMAGE}
 
-RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
     apt-get update && apt-get install -y --no-install-recommends --fix-missing \
         libc6-dev \
         libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \

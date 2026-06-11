@@ -11,13 +11,7 @@
   "scripts": {
     "build": "tsc -b",
     "benchmark": "node dist/index.js",
-    "test": "pnpm benchmark --body ~/req/farbic.json",
-    "farbic_big_png": "pnpm benchmark --body ~/req/farbic_big_png.json -c 50 -a 600",
-    "farbic_big_jpg": "pnpm benchmark --body ~/req/farbic_big_jpg.json -c 50 -a 600",
-    "farbic_small_png": "pnpm benchmark --body ~/req/farbic_small_png.json -c 100 -a 600",
-    "farbic_small_jpg": "pnpm benchmark --body ~/req/farbic_small_jpg.json -c 100 -a 600",
-    "leafer_big_png": "pnpm benchmark --body ~/req/leafer_big_png.json -c 50 -a 600",
-    "leafer_big_jpg": "pnpm benchmark --body ~/req/leafer_big_jpg.json -c 50 -a 300"
+    "benchmark:help": "pnpm benchmark --help"
   },
   "dependencies": {
     "autocannon": "^8.0.0"

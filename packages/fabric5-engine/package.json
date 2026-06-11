@@ -22,10 +22,5 @@
   },
   "overrides": {
     "canvas": "@napi-rs/canvas"
-  },
-  "npam": {
-    "overrides": {
-      "canvas": "@napi-rs/canvas"
-    }
   }
 }
