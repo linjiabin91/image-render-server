@@ -11,6 +11,8 @@
     "build": "tsc -b packages/core packages/server packages/leafer-engine packages/fabric5-engine packages/fabric-engine packages/playwright-engine packages/konva-engine",
     "lint": "eslint packages/",
     "lint:fix": "eslint packages/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "start": "node packages/leafer-engine/dist/server.js",
     "start:konva": "node packages/konva-engine/dist/server.js",
     "benchmark": "node packages/benchmark/dist/index.js"
@@ -24,7 +26,8 @@
     "eslint": "^9.39.4",
     "pino-pretty": "^13.1.3",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.0"
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
   },
   "packageManager": "pnpm@8.4.0",
   "pnpm": {
