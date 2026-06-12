@@ -126,7 +126,9 @@ export class LeaferEngine implements Engine {
             result = encodePngRgba(imageData.data, pw, ph);
             perf.mark("encode");
         } else {
+            // Leafer 使用 jpg 而非 jpeg
             const leaferFormat = format === 'jpeg' ? 'jpg' : format;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- leafer export 类型不完整
             const exportResult = await (leafer as any).export(leaferFormat, {quality: quantity});
             const data = (exportResult as any).data;
             result = typeof data === 'string'
