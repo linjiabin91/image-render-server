@@ -1,4 +1,4 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader} from "@render-server/core";
 import {NapiCanvasFontRegistry} from "./napi-canvas-font-registry.js";
 // Konva 类型定义在 TS 6.0 下无法正确解析，运行时导入 + 类型断言绕过
 import KonvaNs from 'konva';
@@ -116,9 +116,6 @@ export interface KonvaTemplateJson {
     [key: string]: unknown;
 }
 
-/** 图片请求超时（毫秒） */
-const IMAGE_FETCH_TIMEOUT = 10000;
-
 /**
  * 获取节点类型 — 兼容 tag 和 className 两种属性名
  *
@@ -169,8 +166,8 @@ export class KonvaEngine implements Engine {
     #initialized = false;
     /** 记录每个 Stage 的 cacheKey，用于缓存命中判断 */
     #cacheKeyMap = new WeakMap<KonvaStage, string>();
-    /** 已加载图片缓存（URL → @napi-rs/canvas Image） */
-    #imageCache = new Map<string, unknown>();
+    /** 图片加载器（三级缓存：LRU → 磁盘 → HTTP） */
+    #imageLoader = createHttpImageLoader(async (buf) => loadImage(buf));
 
     /**
      * 初始化引擎
@@ -275,7 +272,7 @@ export class KonvaEngine implements Engine {
             entry.stage.destroy();
         }
         this.#pool.clear();
-        this.#imageCache.clear();
+        this.#imageLoader.clear();
         this.#initialized = false;
     }
 
@@ -421,7 +418,7 @@ export class KonvaEngine implements Engine {
         const imgUrl = getImageUrl(node);
         if (!imgUrl) return null;
 
-        const img = this.#imageCache.get(imgUrl);
+        const img = this.#imageLoader.getCached(imgUrl);
         if (!img) {
             logger.warn({url: imgUrl.slice(0, 80)}, "image not preloaded for build");
             return null;
@@ -450,51 +447,7 @@ export class KonvaEngine implements Engine {
     async #preloadImages(json: KonvaTemplateJson): Promise<void> {
         const urls = collectImageUrls(json);
         if (urls.length === 0) return;
-
-        await Promise.all(
-            urls.map((url) => this.#loadImageWithCache(url)),
-        );
-    }
-
-    /**
-     * 加载图片（带进程内缓存）
-     *
-     * @param url - 图片 URL
-     * @returns 加载完成的 Promise
-     */
-    async #loadImageWithCache(url: string): Promise<unknown> {
-        if (this.#imageCache.has(url)) {
-            return this.#imageCache.get(url);
-        }
-
-        const promise = Promise.race([
-            fetch(url, {signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT)})
-                .then(async (res) => {
-                    if (!res.ok) {
-                        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                    }
-                    const buf = Buffer.from(await res.arrayBuffer());
-                    return loadImage(buf);
-                })
-                .then((img) => {
-                    this.#imageCache.set(url, img);
-                    return img;
-                }),
-            new Promise<never>((_, reject) =>
-                setTimeout(
-                    () => reject(new Error(`Image fetch timeout: ${url.slice(0, 80)}`)),
-                    IMAGE_FETCH_TIMEOUT,
-                ),
-            ),
-        ]).catch((err: Error) => {
-            logger.warn({err, url: url.slice(0, 80)}, "image load failed");
-            return null;
-        });
-
-        this.#imageCache.set(url, promise);
-        const result = await promise;
-        this.#imageCache.set(url, result);
-        return result;
+        await this.#imageLoader.preload(urls);
     }
 
     // ── 智能更新 ────────────────────────────────────────────────────────
@@ -535,7 +488,7 @@ export class KonvaEngine implements Engine {
                 const currentUrl = target.__url as string | undefined;
                 if (newUrl !== undefined && newUrl !== currentUrl) {
                     // 加载新图片
-                    const img = await this.#loadImageWithCache(newUrl);
+                    const img = await this.#imageLoader.load(newUrl);
                     if (img) {
                         (target.image as (v: unknown) => void)(img);
                         target.__url = newUrl;

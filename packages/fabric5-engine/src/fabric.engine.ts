@@ -1,23 +1,19 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {
+    autoRegisterFonts,
+    createHttpImageLoader,
+    type Engine,
+    logger,
+    PerfTimer,
+    type RenderOptions,
+    resolveVariables
+} from "@render-server/core";
 import {Fabric5SkiaFontRegistry} from "./fabric5-skia-font-registry.js";
-import {Canvas, FontLibrary, Image, loadImage} from 'skia-canvas';
+import {Canvas, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
-import {fileURLToPath} from 'node:url';
-import {dirname, resolve} from 'node:path';
+import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {CompressionType, Transformer} from '@napi-rs/image';
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    renameSync,
-    statSync,
-    unlinkSync,
-    writeFileSync,
-} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {LRUCache} from 'lru-cache';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 字体管理
@@ -67,85 +63,12 @@ const resetFailedImages = () => {
 resetFailedImages();
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 多级图片缓存（跨进程共享磁盘 + 进程内 LRU + 请求去重）
+// 图片加载器（三级缓存：LRU → 磁盘 → HTTP）
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SHARED_CACHE_DIR = resolve(tmpdir(), 'image-cache');
-const SHARED_CACHE_TTL = 1000 * 60 * 30; // 30 分钟
-mkdirSync(SHARED_CACHE_DIR, {recursive: true});
-
-// 定期清理过期缓存
-const cleanupTimer = setInterval(() => {
-    try {
-        const now = Date.now();
-        for (const file of readdirSync(SHARED_CACHE_DIR)) {
-            const filePath = resolve(SHARED_CACHE_DIR, file);
-            try {
-                if (statSync(filePath).mtimeMs < now - SHARED_CACHE_TTL) {
-                    unlinkSync(filePath);
-                }
-            } catch { /* ignore */
-            }
-        }
-    } catch { /* ignore */
-    }
-}, 1000 * 60 * 5);
-if (cleanupTimer.unref) cleanupTimer.unref();
-
-const cacheKeyFor = (url: string) => createHash('md5').update(url).digest('hex');
-const cachePathFor = (url: string) => resolve(SHARED_CACHE_DIR, cacheKeyFor(url));
-
-/** 进程内 LRU 缓存 */
-const imageCache = new LRUCache<string, Image>({max: 50, ttl: 1000 * 60 * 30});
-
-/** 请求去重 */
-const inflightRequests = new LRUCache<string, Promise<unknown>>({max: 100, ttl: 1000 * 60 * 5});
-
-/**
- * 从 URL 或磁盘缓存加载图片，返回 skia-canvas 原生 Image
- */
-const loadImageWithCache = async (url: string): Promise<unknown> => {
-    // 1. 共享磁盘缓存
-    const cachePath = cachePathFor(url);
-    if (existsSync(cachePath)) {
-        try {
-            const buf = readFileSync(cachePath);
-            const img = await loadImage(buf);
-            imageCache.set(url, img);
-            return img;
-        } catch {
-            try {
-                unlinkSync(cachePath);
-            } catch { /* ignore */
-            }
-        }
-    }
-
-    // 2. 下载原始字节
-    const FETCH_TIMEOUT = Number(process.env.IMAGE_FETCH_TIMEOUT) || 10_000;
-    const response = await fetch(url, {signal: AbortSignal.timeout(FETCH_TIMEOUT)});
-    if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-    }
-    const buffer = Buffer.from(await response.arrayBuffer());
-
-    // 3. 原子写入磁盘缓存
-    const tmpPath = cachePath + '.' + process.pid;
-    writeFileSync(tmpPath, buffer);
-    try {
-        renameSync(tmpPath, cachePath);
-    } catch {
-        try {
-            unlinkSync(tmpPath);
-        } catch { /* ignore */
-        }
-    }
-
-    // 4. 加载到内存
-    const img = await loadImage(buffer);
-    imageCache.set(url, img);
-    return img;
-};
+const imageLoader = createHttpImageLoader(async (buf) => loadImage(buf), {
+    cacheDir: resolve(tmpdir(), 'image-cache'),
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CSS 约束修正
@@ -179,23 +102,14 @@ const normalizeImageOptions = (options: Record<string, unknown> | undefined, img
 // ═══════════════════════════════════════════════════════════════════════════
 
 fabric.Image.fromURL = ((url: string, callback: (img?: fabric.Image) => void, imgOptions?: Record<string, unknown>) => {
-    const cachedImg = imageCache.get(url);
+    const cachedImg = imageLoader.getCached(url);
     if (cachedImg) {
         normalizeImageOptions(imgOptions, cachedImg);
         callback(new fabric.Image(cachedImg as unknown as HTMLImageElement, imgOptions));
         return;
     }
 
-    let loadPromise = inflightRequests.get(url);
-    if (!loadPromise) {
-        loadPromise = loadImageWithCache(url);
-        inflightRequests.set(url, loadPromise);
-        loadPromise.finally(() => {
-            inflightRequests.delete(url);
-        });
-    }
-
-    loadPromise.then((imgElement: unknown) => {
+    imageLoader.load(url).then((imgElement: unknown) => {
         try {
             normalizeImageOptions(imgOptions, imgElement);
             callback(new fabric.Image(imgElement as unknown as HTMLImageElement, imgOptions));
@@ -208,7 +122,7 @@ fabric.Image.fromURL = ((url: string, callback: (img?: fabric.Image) => void, im
 }) as unknown as typeof fabric.Image.fromURL;
 
 fabric.util.loadImage = ((url: string, callback: (img: HTMLImageElement | null, isError: boolean) => void) => {
-    loadImageWithCache(url)
+    imageLoader.load(url)
         .then((image) => callback(image as HTMLImageElement, false))
         .catch(() => callback(null, true));
     return undefined;
@@ -218,8 +132,8 @@ fabric.util.loadImage = ((url: string, callback: (img: HTMLImageElement | null, 
 const ImageKlass = fabric.Image as unknown as Record<string, unknown>;
 ImageKlass.fromObject = function (_object: Record<string, unknown>, callback: (img: fabric.Image | null, isError: boolean) => void) {
     const object = fabric.util.object.clone(_object);
-    fabric.util.loadImage(object.src, ((img: HTMLImageElement | null, isError: boolean) => {
-        if (isError || !img) {
+    imageLoader.load(object.src).then((img: unknown) => {
+        if (!img) {
             _failedImageUrls.add(object.src);
             callback(null, true);
             return;
@@ -231,11 +145,14 @@ ImageKlass.fromObject = function (_object: Record<string, unknown>, callback: (i
             object.filters = filters || [];
             initFilters.call(object, [object.resizeFilter], (resizeFilters: unknown[]) => {
                 object.resizeFilter = resizeFilters[0];
-                const image = new fabric.Image(img, object);
+                const image = new fabric.Image(img as unknown as HTMLImageElement, object);
                 callback(image, false);
             });
         });
-    }) as (img: HTMLImageElement) => void, null, object.crossOrigin);
+    }).catch(() => {
+        _failedImageUrls.add(object.src);
+        callback(null, true);
+    });
 };
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────
@@ -348,22 +265,7 @@ export class FabricEngine implements Engine {
     async #preloadImages(json: FabricTemplateJson): Promise<void> {
         const urls = collectImageUrls(json);
         if (urls.length === 0) return;
-
-        await Promise.all(
-            urls.map((url) => {
-                if (!imageCache.has(url)) {
-                    const p = loadImageWithCache(url).then((img) => {
-                        imageCache.set(url, img as Image);
-                        return img;
-                    }).catch((err: Error) => {
-                        logger.warn({err, url: url.slice(0, 80)}, "image load failed");
-                        return null;
-                    });
-                    imageCache.set(url, p as unknown as Image);
-                }
-                return imageCache.get(url);
-            }),
-        );
+        await imageLoader.preload(urls);
     }
 
     /**

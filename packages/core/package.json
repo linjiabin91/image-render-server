@@ -26,6 +26,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "lru-cache": "^11.5.1",
     "pino": "^10.3.1"
   }
 }

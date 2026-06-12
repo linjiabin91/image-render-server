@@ -11,3 +11,9 @@ dist
 .pnpm-debug.log
 /CLAUDE.md
 /.codegraph/
+
+# tsc -b 编译产物（因无根 outDir，生成在 src/ 目录下）
+*.js
+*.d.ts
+*.d.ts.map
+*.js.map

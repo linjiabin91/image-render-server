@@ -1,4 +1,4 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, createNoopImageLoader} from "@render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
@@ -50,6 +50,8 @@ export class LeaferEngine implements Engine {
     #initialized = false;
     /** 记录每个 Leafer 实例的 cacheKey，用于缓存命中判断 */
     #cacheKeyMap = new WeakMap<Leafer, string>();
+    /** 图片加载器统一接口占位（实际委托给 Resource） */
+    #imageLoader = createNoopImageLoader();
 
     /**
      * 初始化引擎，建立 Leafer 画布环境

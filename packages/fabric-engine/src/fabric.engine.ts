@@ -1,22 +1,11 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader} from "@render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
-import {Canvas, FontLibrary, Image, loadImage} from 'skia-canvas';
+import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas, Text as FabricText} from 'fabric/node';
 import {createHash} from 'node:crypto';
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    renameSync,
-    statSync,
-    unlinkSync,
-    writeFileSync
-} from 'node:fs';
 import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
-import {LRUCache} from 'lru-cache';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 字体管理
@@ -25,70 +14,12 @@ import {LRUCache} from 'lru-cache';
 autoRegisterFonts(new SkiaFontRegistry(), import.meta.url);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 多级图片缓存（进程内 LRU → 磁盘 → HTTP）
+// 图片加载器（三级缓存：LRU → 磁盘 → HTTP）
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SHARED_CACHE_DIR = resolve(tmpdir(), 'fabric7-image-cache');
-const SHARED_CACHE_TTL = 1000 * 60 * 30;
-mkdirSync(SHARED_CACHE_DIR, {recursive: true});
-
-const cleanupTimer = setInterval(() => {
-    try {
-        const now = Date.now();
-        for (const file of readdirSync(SHARED_CACHE_DIR)) {
-            const fp = resolve(SHARED_CACHE_DIR, file);
-            try {
-                if (statSync(fp).mtimeMs < now - SHARED_CACHE_TTL) unlinkSync(fp);
-            } catch { /* ignore */
-            }
-        }
-    } catch { /* ignore */
-    }
-}, 1000 * 60 * 5);
-if (cleanupTimer.unref) cleanupTimer.unref();
-
-const cacheKeyFor = (url: string) => createHash('md5').update(url).digest('hex');
-const cachePathFor = (url: string) => resolve(SHARED_CACHE_DIR, cacheKeyFor(url));
-
-const imageCache = new LRUCache<string, Image>({max: 50, ttl: 1000 * 60 * 30});
-const inflightRequests = new LRUCache<string, Promise<unknown>>({max: 100, ttl: 1000 * 60 * 5});
-
-const loadImageWithCache = async (url: string): Promise<Image> => {
-    const cp = cachePathFor(url);
-    if (existsSync(cp)) {
-        try {
-            const buf = readFileSync(cp);
-            const img = await loadImage(buf);
-            imageCache.set(url, img);
-            return img;
-        } catch {
-            try {
-                unlinkSync(cp);
-            } catch { /* ignore */
-            }
-        }
-    }
-
-    const timeout = Number(process.env.IMAGE_FETCH_TIMEOUT) || 10_000;
-    const res = await fetch(url, {signal: AbortSignal.timeout(timeout)});
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-
-    const tmp = cp + '.' + process.pid;
-    writeFileSync(tmp, buf);
-    try {
-        renameSync(tmp, cp);
-    } catch {
-        try {
-            unlinkSync(tmp);
-        } catch { /* ignore */
-        }
-    }
-
-    const img = await loadImage(buf);
-    imageCache.set(url, img);
-    return img;
-};
+const imageLoader = createHttpImageLoader(async (buf) => loadImage(buf), {
+    cacheDir: resolve(tmpdir(), 'fabric7-image-cache'),
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Fabric 7 拦截 — 图片加载走 @napi-rs/canvas
@@ -199,18 +130,12 @@ const _fromObjectOrig = FabricImage.fromObject.bind(FabricImage);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fabric fromObject accepts dynamic payloads
 FabricImage.fromObject = ((object: any) => {
     if (object.src) {
-        const cached = imageCache.get(object.src);
+        const cached = imageLoader.getCached(object.src) as ImageLike | undefined;
         if (cached) {
             normalizeImageOptions(object, cached);
             return new FabricImage(cached as unknown as HTMLImageElement, object);
         }
-        let p = inflightRequests.get(object.src);
-        if (!p) {
-            p = loadImageWithCache(object.src);
-            inflightRequests.set(object.src, p);
-            p.finally(() => inflightRequests.delete(object.src));
-        }
-        return p.then((el: unknown) => {
+        return imageLoader.load(object.src).then((el: unknown) => {
             normalizeImageOptions(object, el as ImageLike);
             return new FabricImage(el as unknown as HTMLImageElement, object);
         });
@@ -220,19 +145,13 @@ FabricImage.fromObject = ((object: any) => {
 
 // fromURL 备选路径
 FabricImage.fromURL = ((url: string, callback?: (img?: FabricImage) => void, imgOptions?: Record<string, unknown>) => {
-    const cached = imageCache.get(url);
+    const cached = imageLoader.getCached(url) as ImageLike | undefined;
     if (cached) {
         normalizeImageOptions(imgOptions, cached);
         callback?.(new FabricImage(cached as unknown as HTMLImageElement, imgOptions));
         return;
     }
-    let p = inflightRequests.get(url);
-    if (!p) {
-        p = loadImageWithCache(url);
-        inflightRequests.set(url, p);
-        p.finally(() => inflightRequests.delete(url));
-    }
-    p.then((el: unknown) => {
+    imageLoader.load(url).then((el: unknown) => {
         normalizeImageOptions(imgOptions, el as ImageLike);
         callback?.(new FabricImage(el as unknown as HTMLImageElement, imgOptions));
     }).catch(() => callback?.());
@@ -347,16 +266,7 @@ export class FabricEngine implements Engine {
     async #preload(j: FabricTemplateJson): Promise<void> {
         const urls = collectImageUrls(j);
         if (!urls.length) return;
-        await Promise.all(urls.map(async (u) => {
-            if (!imageCache.has(u)) {
-                try {
-                    const img = await loadImageWithCache(u);
-                    imageCache.set(u, img);
-                } catch (e: unknown) {
-                    logger.warn({err: e, url: u.slice(0, 80)}, "img fail");
-                }
-            }
-        }));
+        await imageLoader.preload(urls);
     }
 
     /**
