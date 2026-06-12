@@ -109,9 +109,6 @@ importers:
 
   packages/konva-engine:
     dependencies:
-      '@napi-rs/canvas':
-        specifier: ^1.0.0
-        version: registry.npmmirror.com/@napi-rs/canvas@1.0.0
       '@napi-rs/image':
         specifier: ^1.12.0
         version: registry.npmmirror.com/@napi-rs/image@1.12.0(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)
@@ -122,8 +119,11 @@ importers:
         specifier: '*'
         version: link:../server
       konva:
-        specifier: ^9.3.0
-        version: registry.npmmirror.com/konva@9.3.0
+        specifier: ^10.3.0
+        version: registry.npmmirror.com/konva@10.3.0
+      skia-canvas:
+        specifier: ^3.0.8
+        version: registry.npmmirror.com/skia-canvas@3.0.8
     devDependencies:
       typescript:
         specifier: ^6.0.3
@@ -2708,7 +2708,7 @@ packages:
     dev: false
     optional: true
 
-  registry.npmmirror.com/acorn-jsx@5.3.2(acorn@8.16.0):
+  registry.npmmirror.com/acorn-jsx@5.3.2(acorn@8.17.0):
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==, registry: http://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/acorn-jsx/-/acorn-jsx-5.3.2.tgz}
     id: registry.npmmirror.com/acorn-jsx/5.3.2
     name: acorn-jsx
@@ -2716,7 +2716,7 @@ packages:
     peerDependencies:
       acorn: ^6.0.0 || ^7.0.0 || ^8.0.0
     dependencies:
-      acorn: registry.npmmirror.com/acorn@8.16.0
+      acorn: registry.npmmirror.com/acorn@8.17.0
     dev: true
 
   registry.npmmirror.com/acorn-walk@7.2.0:
@@ -2736,10 +2736,10 @@ packages:
     dev: false
     optional: true
 
-  registry.npmmirror.com/acorn@8.16.0:
-    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==, registry: http://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/acorn/-/acorn-8.16.0.tgz}
+  registry.npmmirror.com/acorn@8.17.0:
+    resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==, registry: http://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/acorn/-/acorn-8.17.0.tgz}
     name: acorn
-    version: 8.16.0
+    version: 8.17.0
     engines: {node: '>=0.4.0'}
     hasBin: true
 
@@ -3432,8 +3432,8 @@ packages:
     version: 10.4.0
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     dependencies:
-      acorn: registry.npmmirror.com/acorn@8.16.0
-      acorn-jsx: registry.npmmirror.com/acorn-jsx@5.3.2(acorn@8.16.0)
+      acorn: registry.npmmirror.com/acorn@8.17.0
+      acorn-jsx: registry.npmmirror.com/acorn-jsx@5.3.2(acorn@8.17.0)
       eslint-visitor-keys: registry.npmmirror.com/eslint-visitor-keys@4.2.1
     dev: true
 
@@ -4126,7 +4126,7 @@ packages:
         optional: true
     dependencies:
       abab: registry.npmmirror.com/abab@2.0.6
-      acorn: registry.npmmirror.com/acorn@8.16.0
+      acorn: registry.npmmirror.com/acorn@8.17.0
       acorn-globals: registry.npmmirror.com/acorn-globals@6.0.0
       canvas: link:@napi-rs/canvas
       cssom: registry.npmmirror.com/cssom@0.5.0
@@ -4241,10 +4241,10 @@ packages:
       json-buffer: registry.npmmirror.com/json-buffer@3.0.1
     dev: true
 
-  registry.npmmirror.com/konva@9.3.0:
-    resolution: {integrity: sha512-qLTW06GRwb+WMMUXJcGIb0qP4uO0mZLAwgRI82zuCkRmCH1lFsVPmrPzqqHnjKCMu4Jzw6d/R8JxkPw7gkVnuw==, registry: http://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/konva/-/konva-9.3.0.tgz}
+  registry.npmmirror.com/konva@10.3.0:
+    resolution: {integrity: sha512-gt19K2gzY4lHbnkvsku7eSmB+A9PTS2jG4F9coBMsdjM1UKfJNxJbDbXVpeCW1wjEGRwBD3nBamcHnqJhAeKlg==, registry: http://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/konva/-/konva-10.3.0.tgz}
     name: konva
-    version: 9.3.0
+    version: 10.3.0
     dev: false
 
   registry.npmmirror.com/levn@0.4.1:

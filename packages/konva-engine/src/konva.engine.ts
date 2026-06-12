@@ -2,71 +2,25 @@ import {
     autoRegisterFonts,
     createHttpImageLoader,
     encodePngRgba,
-    ObjectPool,
-    patchCanvas,
     type Engine,
     logger,
+    ObjectPool,
     PerfTimer,
     type RenderOptions,
     resolveVariables
 } from "@render-server/core";
-import {NapiCanvasFontRegistry} from "./napi-canvas-font-registry.js";
-// Konva 类型定义在 TS 6.0 下无法正确解析，运行时导入 + 类型断言绕过
-import KonvaNs from 'konva';
-import type {
-    ImageConfig,
-    KonvaLayer,
-    KonvaNamespace,
-    KonvaStage,
-    NodeConfig,
-    StageConfig,
-    TextConfig,
-} from './konva.types.js';
-import {Canvas, loadImage} from '@napi-rs/canvas';
-
+import {SkiaFontRegistry} from "./skia-font-registry.js";
+// 1. 先执行，模拟 Node 环境
+import Konva from 'konva'
+import 'konva/skia-backend';
+import {Canvas, loadImage} from 'skia-canvas';
 import {createHash} from "node:crypto";
-
-const Konva = KonvaNs as unknown as KonvaNamespace;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 全局 Konva 配置
-// ═══════════════════════════════════════════════════════════════════════════
-
-Konva.autoDrawEnabled = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 字体管理
 // ═══════════════════════════════════════════════════════════════════════════
 
-autoRegisterFonts(new NapiCanvasFontRegistry(), import.meta.url);
-
-/** 拦截 Konva 内部 canvas 创建，返回 @napi-rs/canvas 修补实例 */
-Konva.Util.createCanvasElement = () =>
-    patchCanvas(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Mock 容器对象 — 满足 Konva Stage container 参数
-// ═══════════════════════════════════════════════════════════════════════════
-
-const createMockContainer = (width: number, height: number): Record<string, unknown> => ({
-    clientWidth: width,
-    clientHeight: height,
-    style: {},
-    appendChild: () => {},
-    removeChild: () => {},
-    insertBefore: () => {},
-    getBoundingClientRect: () => ({
-        width, height, top: 0, left: 0, right: width, bottom: height, x: 0, y: 0,
-        toJSON() { return this; },
-    }),
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    querySelectorAll: () => [],
-    getAttribute: () => null,
-    setAttribute: () => {},
-    removeAttribute: () => {},
-});
-
+autoRegisterFonts(new SkiaFontRegistry(), import.meta.url);
 // ═══════════════════════════════════════════════════════════════════════════
 // 类型定义
 // ═══════════════════════════════════════════════════════════════════════════
@@ -86,10 +40,11 @@ export interface KonvaNode {
     fontFamily?: string;
     fill?: string | {type: string; url: string};
     /** leafer 格式的图片 URL */
-    url?: string;
+    src?: string;
     /** fabric 格式的图片 URL（className="Image" 时） */
     image?: string;
     children?: KonvaNode[];
+    attrs?: Record<string, unknown>
     [key: string]: unknown;
 }
 
@@ -109,7 +64,7 @@ export interface KonvaTemplateJson {
  * @returns 节点类型字符串（小写）
  */
 function getNodeType(node: KonvaNode): string {
-    const raw = (node.tag || node.className || '') as string;
+    const raw = (node.className || '') as string;
     return raw.toLowerCase();
 }
 
@@ -120,18 +75,18 @@ function getNodeType(node: KonvaNode): string {
  * @returns 图片 URL 或 undefined
  */
 function getImageUrl(node: KonvaNode): string | undefined {
-    if (node.image && typeof node.image === 'string') return node.image as string;
-    if (node.url) return node.url;
-    if (node.fill && typeof node.fill === 'object') return (node.fill as Record<string, string>).url;
+    if (node.attrs && node.attrs.src) {
+        return node.attrs.src as string;
+    }
     return undefined;
 }
 
 /** 池条目 */
 interface PoolEntry {
-    stage: KonvaStage;
-    /** Konva 内部的实际 canvas（已修补，@napi-rs/canvas 实例） */
-    canvas: Canvas;
-    layer: KonvaLayer;
+    stage: Konva.Stage;
+    /** Konva 内部的实际 canvas（skia-canvas 实例） */
+    canvas: HTMLCanvasElement;
+    layer: Konva.Layer;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -155,7 +110,7 @@ export class KonvaEngine implements Engine {
     });
     #initialized = false;
     /** 记录每个 Stage 的 cacheKey，用于缓存命中判断 */
-    #cacheKeyMap = new WeakMap<KonvaStage, string>();
+    #cacheKeyMap = new WeakMap<Konva.Stage, string>();
     /** 图片加载器（三级缓存：LRU → 磁盘 → HTTP） */
     #imageLoader = createHttpImageLoader(async (buf) => loadImage(buf));
 
@@ -184,14 +139,14 @@ export class KonvaEngine implements Engine {
             throw new Error("KonvaEngine not initialized, call init() first");
         }
 
-        const {width, height, format, pixelRatio = 1, compressLevel = 0} = params.options;
-        const pw = Math.ceil(width * pixelRatio);
-        const ph = Math.ceil(height * pixelRatio);
+        const {width, height, format, pixelRatio = 1, compressLevel = 0, quantity = 92} = params.options;
         const json = params.templateJson;
         const perf = new PerfTimer("render");
 
         // (a) 变量替换
         const resolvedJson = resolveVariables(json, params.variables) as KonvaTemplateJson;
+        const konvaNode = resolvedJson.children[0];
+        const childs = konvaNode.children;
         perf.mark("resolve");
 
         // (b) 判断缓存命中
@@ -201,32 +156,37 @@ export class KonvaEngine implements Engine {
         })).digest("hex");
 
         const entry = this.#pool.acquire(cacheKey, () => {
-            const mockContainer = createMockContainer(pw, ph);
             const stage = new Konva.Stage({
-                container: mockContainer,
-                width: pw,
-                height: ph,
-            } as StageConfig) as unknown as KonvaStage;
-            const layer = new Konva.Layer() as unknown as KonvaLayer;
-            (stage as unknown as { add(l: KonvaLayer): void }).add(layer);
-            const canvas = (layer.canvas as unknown as Record<string, Canvas>)._canvas;
+                width: width,
+                height: height,
+                pixelRatio: pixelRatio
+            });
+            const layer = new Konva.Layer();
+            stage.add(layer);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any — Konva 内部属性
+            const canvas = (layer.canvas as any)._canvas;
             return {stage, canvas, layer};
         });
         const prevKey = this.#cacheKeyMap.get(entry.stage);
         const isCacheHit = prevKey === cacheKey && (entry.layer.children?.length ?? 0) > 0;
 
-        if (isCacheHit) {
-            // HIT：增量更新
-            await this.#smartUpdate(entry.layer, resolvedJson);
-            perf.mark("smartUpdate");
-        } else {
-            // MISS：预加载图片 + 全量重建
-            await this.#preloadImages(resolvedJson);
-            perf.mark("preload");
-            this.#rebuildStage(entry.layer, resolvedJson);
-            this.#cacheKeyMap.set(entry.stage, cacheKey);
-            perf.mark("build");
+        // MISS：预加载图片 + 全量重建
+        await this.#preloadImages(resolvedJson);
+        entry.layer.destroyChildren();
+        childs?.forEach((child) => {
+            entry.layer.add(Konva.Node.create(child));
+        })
+        const images = entry.stage.find('Image') as Konva.Image[];
+        for (const imgNode of images) {
+            const src = imgNode.attrs.src;
+            if (!src) continue;
+            // skia-canvas 加载远程图片
+            const img = await this.#imageLoader.getCached(src);
+            // 给 Image 节点绑定图片实例
+            imgNode.image(img as any);
         }
+        this.#cacheKeyMap.set(entry.stage, cacheKey);
+        perf.mark("build");
 
         // (c) 触发 Konva 渲染
         entry.layer.draw();
@@ -240,19 +200,16 @@ export class KonvaEngine implements Engine {
 
         let result: Buffer;
         if (format === "png") {
-            const imageData = ctx.getImageData(0, 0, pw, ph);
+            const imageData = ctx.getImageData(0, 0, width, height);
             perf.mark("readPixels");
-            result = encodePngRgba(imageData.data, pw, ph, compressLevel);
+            result = encodePngRgba(imageData.data, width, height, compressLevel);
             perf.mark("encode");
         } else {
-            // 其他格式：@napi-rs/canvas 原生 toBuffer
-            const fmt = format === 'jpg' ? 'jpeg' : format;
-            const mime: 'image/jpeg' | 'image/webp' = fmt === 'jpeg' ? 'image/jpeg' : 'image/webp';
-            result = entry.canvas.toBuffer(mime) as Buffer;
-            perf.mark("encode");
+            const skiaCanvas = entry.canvas as unknown as Canvas;
+            result = skiaCanvas.toBufferSync(format, {quality: quantity/100})
         }
 
-        logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
+        logger.info({steps: perf.steps(), format, size: `${width}x${height}`}, "render");
         return result;
     }
 
@@ -265,121 +222,6 @@ export class KonvaEngine implements Engine {
         this.#initialized = false;
     }
 
-    // ── 池管理 ──────────────────────────────────────────────────────────
-
-    // ── 全量重建 ────────────────────────────────────────────────────────
-
-    /**
-     * 全量重建 Stage — 清空 Layer 并从 JSON 重新构建节点树
-     *
-     * @param layer - Konva Layer
-     * @param json - 变量替换后的模板 JSON
-     */
-    #rebuildStage(layer: KonvaLayer, json: KonvaTemplateJson): void {
-        (layer as unknown as { destroyChildren(): void }).destroyChildren();
-        if (json.children) {
-            for (const child of json.children) {
-                const node = this.#buildNode(child);
-                if (node) {
-                    (layer as unknown as { add(n: unknown): void }).add(node);
-                }
-            }
-        }
-    }
-
-    /**
-     * 递归构建 Konva 节点
-     *
-     * 支持 tag / className 两种属性名：
-     * - "Text" → Konva.Text
-     * - "Image" → Konva.Image（image/url/fill.url 三种 URL 来源）
-     * - "Group" / "Layer" → Konva.Group（容器，递归 children）
-     *
-     * @param node - 模板节点
-     * @returns Konva Node 或 null
-     */
-    #buildNode(node: KonvaNode): unknown {
-        const type = getNodeType(node).toLowerCase();
-        if (type === "text") {
-            return this.#buildTextNode(node);
-        }
-        if (type === "image") {
-            return this.#buildImageNode(node);
-        }
-        if (type === "group" || type === "layer") {
-            const group = new Konva.Group({
-                x: node.x,
-                y: node.y,
-                width: node.width,
-                height: node.height,
-            } as NodeConfig);
-            if (node.children) {
-                for (const child of node.children) {
-                    const childNode = this.#buildNode(child);
-                    if (childNode) {
-                        (group as unknown as { add(n: unknown): void }).add(childNode);
-                    }
-                }
-            }
-            return group;
-        }
-        return null;
-    }
-
-    /**
-     * 构建 Konva.Text 节点
-     *
-     * @param node - Text 模板节点
-     * @returns Konva.Text 实例
-     */
-    #buildTextNode(node: KonvaNode): unknown {
-        const attrs: Record<string, unknown> = {
-            x: node.x ?? 0,
-            y: node.y ?? 0,
-            width: node.width,
-            height: node.height,
-            text: node.text ?? '',
-            fontSize: node.fontSize ?? 16,
-            fontFamily: node.fontFamily ?? 'sans-serif',
-            fill: typeof node.fill === 'string' ? node.fill : '#333',
-        };
-        // 过滤 undefined
-        for (const k of Object.keys(attrs)) {
-            if (attrs[k] === undefined) delete attrs[k];
-        }
-        return new Konva.Text(attrs as TextConfig);
-    }
-
-    /**
-     * 构建 Konva.Image 节点
-     *
-     * 图片 URL 来源优先级：node.image > node.url > node.fill.url
-     *
-     * @param node - Image 模板节点
-     * @returns Konva.Image 实例
-     */
-    #buildImageNode(node: KonvaNode): unknown {
-        const imgUrl = getImageUrl(node);
-        if (!imgUrl) return null;
-
-        const img = this.#imageLoader.getCached(imgUrl);
-        if (!img) {
-            logger.warn({url: imgUrl.slice(0, 80)}, "image not preloaded for build");
-            return null;
-        }
-
-        const attrs: Record<string, unknown> = {
-            x: node.x ?? 0,
-            y: node.y ?? 0,
-            width: node.width,
-            height: node.height,
-            image: img,
-        };
-        for (const k of Object.keys(attrs)) {
-            if (attrs[k] === undefined) delete attrs[k];
-        }
-        return new Konva.Image(attrs as ImageConfig);
-    }
 
     // ── 图片预加载 ──────────────────────────────────────────────────────
 
@@ -392,61 +234,6 @@ export class KonvaEngine implements Engine {
         const urls = collectImageUrls(json);
         if (urls.length === 0) return;
         await this.#imageLoader.preload(urls);
-    }
-
-    // ── 智能更新 ────────────────────────────────────────────────────────
-
-    /**
-     * 增量更新 Layer 节点 — 仅更新变化的 text/url 属性
-     *
-     * 按数组索引匹配，前置 cache hit 保证结构一致。
-     *
-     * @param layer - Konva Layer
-     * @param resolvedJson - 变量替换后的模板 JSON
-     */
-    async #smartUpdate(layer: KonvaLayer, resolvedJson: KonvaTemplateJson): Promise<void> {
-        const existing = layer.children ?? [];
-        const newChildren = resolvedJson.children ?? [];
-        await this.#smartUpdateChildren(existing as unknown[], newChildren);
-    }
-
-    /**
-     * 递归更新子节点列表
-     *
-     * @param existing - 现有 Konva Node 数组
-     * @param newChildren - 新模板节点数组
-     */
-    async #smartUpdateChildren(existing: unknown[], newChildren: KonvaNode[]): Promise<void> {
-        const len = Math.min(existing.length, newChildren.length);
-        for (let i = 0; i < len; i++) {
-            const target = existing[i] as Record<string, unknown>;
-            const node = newChildren[i];
-
-            const nodeType = getNodeType(node).toLowerCase();
-            if (nodeType === "text" && (target.getClassName as () => string)?.() === "Text") {
-                if ((target.text as () => string)?.() !== node.text) {
-                    (target.text as (v: string) => void)(node.text ?? '');
-                }
-            } else if (nodeType === "image" && (target.getClassName as () => string)?.() === "Image") {
-                const newUrl = getImageUrl(node);
-                const currentUrl = target.__url as string | undefined;
-                if (newUrl !== undefined && newUrl !== currentUrl) {
-                    // 加载新图片
-                    const img = await this.#imageLoader.load(newUrl);
-                    if (img) {
-                        (target.image as (v: unknown) => void)(img);
-                        target.__url = newUrl;
-                    }
-                }
-            }
-
-            // 递归处理 Group 子节点
-            const targetChildren = target.children as unknown[] | undefined;
-            const nodeChildren = node.children;
-            if (targetChildren && targetChildren.length > 0 && nodeChildren && nodeChildren.length > 0) {
-                await this.#smartUpdateChildren(targetChildren, nodeChildren);
-            }
-        }
     }
 }
 
@@ -470,9 +257,6 @@ function collectImageUrls(json: KonvaTemplateJson): string[] {
             if (type === "image") {
                 const imgUrl = getImageUrl(child);
                 if (imgUrl) urls.add(imgUrl);
-            }
-            if (child.fill && typeof child.fill === 'object' && (child.fill as Record<string, string>).url) {
-                urls.add((child.fill as Record<string, string>).url);
             }
             if (child.children) {
                 walk(child.children);

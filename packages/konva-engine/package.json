@@ -10,11 +10,11 @@
     "start": "pnpm run build && LOG_PRETTY=true node dist/server.js"
   },
   "dependencies": {
+    "@napi-rs/image": "^1.12.0",
     "@render-server/core": "*",
     "@render-server/server": "*",
-    "konva": "^9.3.0",
-    "@napi-rs/canvas": "^1.0.0",
-    "@napi-rs/image": "^1.12.0"
+    "konva": "^10.3.0",
+    "skia-canvas": "^3.0.8"
   },
   "devDependencies": {
     "typescript": "^6.0.3"
