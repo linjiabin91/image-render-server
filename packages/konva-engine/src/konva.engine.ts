@@ -1,6 +1,7 @@
 import {
     autoRegisterFonts,
     createHttpImageLoader,
+    ObjectPool,
     type Engine,
     logger,
     PerfTimer,
@@ -168,9 +169,13 @@ interface PoolEntry {
  */
 export class KonvaEngine implements Engine {
     /** LRU 池：键为模板 MD5，值按最近使用排序 */
-    #pool = new Map<string, PoolEntry>();
-    /** 池子最大容量 */
-    static #POOL_MAX = 10;
+    readonly #pool = new ObjectPool<PoolEntry>({
+        max: 10,
+        onEvict: (entry) => {
+            this.#cacheKeyMap.delete(entry.stage);
+            entry.stage.destroy();
+        },
+    });
     #initialized = false;
     /** 记录每个 Stage 的 cacheKey，用于缓存命中判断 */
     #cacheKeyMap = new WeakMap<KonvaStage, string>();
@@ -218,7 +223,18 @@ export class KonvaEngine implements Engine {
             templateJson: json,
         })).digest("hex");
 
-        const entry = this.#getCanvas(pw, ph, cacheKey);
+        const entry = this.#pool.acquire(cacheKey, () => {
+            const mockContainer = createMockContainer(pw, ph);
+            const stage = new Konva.Stage({
+                container: mockContainer,
+                width: pw,
+                height: ph,
+            } as StageConfig) as unknown as KonvaStage;
+            const layer = new Konva.Layer() as unknown as KonvaLayer;
+            (stage as unknown as { add(l: KonvaLayer): void }).add(layer);
+            const canvas = (layer.canvas as unknown as Record<string, Canvas>)._canvas;
+            return {stage, canvas, layer};
+        });
         const prevKey = this.#cacheKeyMap.get(entry.stage);
         const isCacheHit = prevKey === cacheKey && (entry.layer.children?.length ?? 0) > 0;
 
@@ -275,61 +291,12 @@ export class KonvaEngine implements Engine {
      * 销毁引擎，释放所有 Konva 实例资源
      */
     destroy(): void {
-        for (const entry of this.#pool.values()) {
-            this.#cacheKeyMap.delete(entry.stage);
-            entry.stage.destroy();
-        }
         this.#pool.clear();
         this.#imageLoader.clear();
         this.#initialized = false;
     }
 
     // ── 池管理 ──────────────────────────────────────────────────────────
-
-    /**
-     * 获取或创建画布 + Stage + Layer（池化管理）
-     *
-     * @param width - 物理像素宽度
-     * @param height - 物理像素高度
-     * @param key - 缓存键（模板 MD5）
-     * @returns 池条目
-     */
-    #getCanvas(width: number, height: number, key: string): PoolEntry {
-        if (this.#pool.has(key)) {
-            const entry = this.#pool.get(key)!;
-            // 移到末尾（最近使用）
-            this.#pool.delete(key);
-            this.#pool.set(key, entry);
-            return entry;
-        }
-
-        // 超过上限：淘汰最久未使用的
-        if (this.#pool.size >= KonvaEngine.#POOL_MAX) {
-            const oldestKey = this.#pool.keys().next().value!;
-            const oldest = this.#pool.get(oldestKey)!;
-            this.#cacheKeyMap.delete(oldest.stage);
-            oldest.stage.destroy();
-            this.#pool.delete(oldestKey);
-        }
-
-        // 创建新 Konva Stage + Layer
-        const mockContainer = createMockContainer(width, height);
-        const stage = new Konva.Stage({
-            container: mockContainer,
-            width,
-            height,
-        } as StageConfig) as unknown as KonvaStage;
-        const layer = new Konva.Layer() as unknown as KonvaLayer;
-        (stage as unknown as { add(l: KonvaLayer): void }).add(layer);
-
-        // Konva 内部 canvas 已通过 Konva.Util.createCanvasElement 全局替换为 @napi-rs/canvas
-        // Konva.Canvas._canvas 存储底层 HTMLCanvasElement（@napi-rs/canvas 实例）
-        const canvas = (layer.canvas as unknown as Record<string, Canvas>)._canvas;
-
-        const entry: PoolEntry = {stage, canvas, layer};
-        this.#pool.set(key, entry);
-        return entry;
-    }
 
     // ── 全量重建 ────────────────────────────────────────────────────────
 

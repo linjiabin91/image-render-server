@@ -1,4 +1,4 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool} from "@render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
@@ -184,8 +184,14 @@ export interface FabricTemplateJson {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class FabricEngine implements Engine {
-    #pool = new Map<string, StaticCanvas>();
-    static #POOL_MAX = 10;
+    /** LRU 池：键为模板 MD5，值按最近使用排序 */
+    readonly #canvasPool = new ObjectPool<StaticCanvas>({
+        max: 10,
+        onEvict: (c) => {
+            c.clear();
+            try { c.dispose(); } catch { /* ignore */ }
+        },
+    });
     #ready = false;
 
     async init(): Promise<void> {
@@ -218,7 +224,11 @@ export class FabricEngine implements Engine {
             options: params.options,
             templateJson: params.templateJson
         })).digest('hex');
-        const fc = this.#getCanvas(pw, ph, cacheKey);
+        const fc = this.#canvasPool.acquire(cacheKey, () => {
+            const raw = patchEl(new Canvas(pw, ph));
+            return new StaticCanvas(raw as unknown as HTMLCanvasElement, {width: pw, height: ph, renderOnAddRemove: false});
+        });
+        if (fc.getObjects().length === 0) fc.clear();
 
         if (fc.getObjects().length > 0) {
             // 缓存命中且有对象 → 增量更新 text / src
@@ -250,14 +260,7 @@ export class FabricEngine implements Engine {
     }
 
     destroy(): void {
-        for (const c of this.#pool.values()) {
-            c.clear();
-            try {
-                c.dispose();
-            } catch { /* ignore */
-            }
-        }
-        this.#pool.clear();
+        this.#canvasPool.clear();
         this.#ready = false;
     }
 
@@ -324,30 +327,6 @@ export class FabricEngine implements Engine {
                 reject(err);
             }
         });
-    }
-
-    #getCanvas(w: number, h: number, key: string): StaticCanvas {
-        if (this.#pool.has(key)) {
-            const c = this.#pool.get(key)!;
-            this.#pool.delete(key);
-            this.#pool.set(key, c);
-            if (c.getObjects().length === 0) c.clear();
-            return c;
-        }
-        if (this.#pool.size >= FabricEngine.#POOL_MAX) {
-            const k = this.#pool.keys().next().value!;
-            const o = this.#pool.get(k)!;
-            o.clear();
-            try {
-                o.dispose();
-            } catch { /* ignore */
-            }
-            this.#pool.delete(k);
-        }
-        const raw = patchEl(new Canvas(w, h));
-        const fc = new StaticCanvas(raw as unknown as HTMLCanvasElement, {width: w, height: h, renderOnAddRemove: false});
-        this.#pool.set(key, fc);
-        return fc;
     }
 
 }

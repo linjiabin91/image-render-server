@@ -1,4 +1,4 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, ObjectPool} from "@render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
@@ -47,10 +47,14 @@ const IMAGE_FETCH_TIMEOUT = 10000;
  * 在 Piscina worker 线程中调用，每个 Worker 持有长期复用的 Leafer 实例。
  */
 export class LeaferEngine implements Engine {
-    /** LRU 池：键为 "${width}x${height}"，值按最近使用排序 */
-    #leaferPool = new Map<string, Leafer>();
-    /** 池子最大容量 */
-    static #POOL_MAX = 10;
+    /** LRU 池：键为模板 MD5，值按最近使用排序 */
+    readonly #leaferPool = new ObjectPool<Leafer>({
+        max: 10,
+        onEvict: (leafer) => {
+            this.#cacheKeyMap.delete(leafer);
+            leafer.destroy();
+        },
+    });
     #initialized = false;
     /** 记录每个 Leafer 实例的 cacheKey，用于缓存命中判断 */
     #cacheKeyMap = new WeakMap<Leafer, string>();
@@ -95,7 +99,7 @@ export class LeaferEngine implements Engine {
             options: params.options,
             templateJson: json
         })).digest("hex");
-        const leafer = this.#getLeafer(cacheKey, width, height);
+        const leafer = this.#leaferPool.acquire(cacheKey, () => new Leafer({width, height, usePartRender: true}));
         const prevKey = this.#cacheKeyMap.get(leafer);
         const isCacheHit = prevKey === cacheKey && leafer.children.length > 0;
 
@@ -142,37 +146,8 @@ export class LeaferEngine implements Engine {
      * 销毁引擎，释放 Leafer 实例资源
      */
     destroy(): void {
-        for (const leafer of this.#leaferPool.values()) {
-            this.#cacheKeyMap.delete(leafer);
-            leafer.destroy();
-        }
         this.#leaferPool.clear();
         this.#initialized = false;
-    }
-
-    #getLeafer(cacheKey: string, width: number, height: number): Leafer {
-        const key = `${cacheKey}`;
-
-        // 命中了：移到末尾（最近使用），返回
-        if (this.#leaferPool.has(key)) {
-            const leafer = this.#leaferPool.get(key)!;
-            this.#leaferPool.delete(key);
-            this.#leaferPool.set(key, leafer);
-            return leafer;
-        }
-
-        // 超过上限：淘汰最久未使用的
-        if (this.#leaferPool.size >= LeaferEngine.#POOL_MAX) {
-            const oldestKey = this.#leaferPool.keys().next().value!;
-            const oldest = this.#leaferPool.get(oldestKey)!;
-            this.#cacheKeyMap.delete(oldest);
-            oldest.destroy();
-            this.#leaferPool.delete(oldestKey);
-        }
-
-        const leafer = new Leafer({width: width, height: height, usePartRender: true});
-        this.#leaferPool.set(key, leafer);
-        return leafer;
     }
 
     async #preloadImages(json: LeaferTemplateJson): Promise<void> {

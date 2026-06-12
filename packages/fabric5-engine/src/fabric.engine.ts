@@ -1,6 +1,7 @@
 import {
     autoRegisterFonts,
     createHttpImageLoader,
+    ObjectPool,
     type Engine,
     logger,
     PerfTimer,
@@ -182,8 +183,14 @@ export interface FabricTemplateJson {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class FabricEngine implements Engine {
-    #canvasPool = new Map<string, fabric.StaticCanvas>();
-    static #POOL_MAX = 10;
+    /** LRU 池：键为模板 MD5，值按最近使用排序 */
+    readonly #canvasPool = new ObjectPool<fabric.StaticCanvas>({
+        max: 10,
+        onEvict: (c) => {
+            c.clear();
+            try { c.dispose(); } catch { /* ignore */ }
+        },
+    });
     #initialized = false;
 
     async init(): Promise<void> {
@@ -217,7 +224,15 @@ export class FabricEngine implements Engine {
 
         // (c) 渲染到 Skia 画布
         const cacheKey = createHash('md5').update(JSON.stringify({options: params.options, templateJson: params.templateJson})).digest('hex');
-        const fabricCanvas = this.#getCanvas(pw, ph, cacheKey);
+        const fabricCanvas = this.#canvasPool.acquire(cacheKey, () => {
+            const rawCanvas = patchCanvasElement(new Canvas(pw, ph));
+            return new fabric.StaticCanvas(rawCanvas as unknown as HTMLCanvasElement, {
+                width: pw,
+                height: ph,
+                renderOnAddRemove: false,
+            });
+        });
+        if (fabricCanvas.getObjects().length === 0) fabricCanvas.clear();
 
         if (fabricCanvas.getObjects().length > 0) {
             // (c1) 缓存命中且有对象 → 增量更新 text / src
@@ -249,13 +264,6 @@ export class FabricEngine implements Engine {
     }
 
     destroy(): void {
-        for (const canvas of this.#canvasPool.values()) {
-            canvas.clear();
-            try {
-                canvas.dispose();
-            } catch { /* skia Canvas 无 parentNode */
-            }
-        }
         this.#canvasPool.clear();
         this.#initialized = false;
     }
@@ -312,49 +320,6 @@ export class FabricEngine implements Engine {
             }
         }
         skCanvas.renderAll();
-    }
-
-    /**
-     * 获取或创建画布实例（池化管理）
-     *
-     * 以模板 MD5 为 key，同一模板复用画布对象。
-     * 已有对象时保留（render 中走增量更新），否则清空重用。
-     * 超限时淘汰最早使用的画布。
-     *
-     * @param width - 画布宽度
-     * @param height - 画布高度
-     * @param key - 缓存键（md5(options + templateJson)）
-     * @returns Fabric 画布实例
-     */
-    #getCanvas(width: number, height: number, key: string): fabric.StaticCanvas {
-        if (this.#canvasPool.has(key)) {
-            const c = this.#canvasPool.get(key)!;
-            this.#canvasPool.delete(key);
-            this.#canvasPool.set(key, c);
-            // 已有对象则保留（render 中会走增量更新），否则清空重用
-            if (c.getObjects().length === 0) c.clear();
-            return c;
-        }
-
-        if (this.#canvasPool.size >= FabricEngine.#POOL_MAX) {
-            const oldestKey = this.#canvasPool.keys().next().value!;
-            const oldest = this.#canvasPool.get(oldestKey)!;
-            oldest.clear();
-            try {
-                oldest.dispose();
-            } catch { /* ignore */
-            }
-            this.#canvasPool.delete(oldestKey);
-        }
-
-        const rawCanvas = patchCanvasElement(new Canvas(width, height));
-        const fabricCanvas = new fabric.StaticCanvas(rawCanvas as unknown as HTMLCanvasElement, {
-            width,
-            height,
-            renderOnAddRemove: false,
-        });
-        this.#canvasPool.set(key, fabricCanvas);
-        return fabricCanvas;
     }
 
 }
