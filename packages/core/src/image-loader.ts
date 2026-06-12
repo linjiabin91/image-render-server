@@ -286,6 +286,7 @@ export const createNoopImageLoader = (): ImageLoader => {
         },
 
         getCached(_url: string): unknown | undefined {
+            console.log(_url);
             return undefined;
         },
 

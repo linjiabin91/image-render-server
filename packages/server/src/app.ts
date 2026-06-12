@@ -101,9 +101,9 @@ export class App {
         return contentType;
       }
 
-      let contentType = toContentType();
+      const contentType = toContentType();
       const result = (await Promise.race([
-        this.#piscina.run(request.body) as Promise<Buffer>,
+        await this.#piscina.run(request.body) as Promise<Buffer>,
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Render timeout (10s)")), 10_000),
         ),

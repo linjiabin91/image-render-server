@@ -8,6 +8,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "useDefineForClassFields": true
   }
 }

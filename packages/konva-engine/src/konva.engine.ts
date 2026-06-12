@@ -1,21 +1,29 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader} from "@render-server/core";
+import {
+    autoRegisterFonts,
+    createHttpImageLoader,
+    type Engine,
+    logger,
+    PerfTimer,
+    type RenderOptions,
+    resolveVariables
+} from "@render-server/core";
 import {NapiCanvasFontRegistry} from "./napi-canvas-font-registry.js";
 // Konva 类型定义在 TS 6.0 下无法正确解析，运行时导入 + 类型断言绕过
 import KonvaNs from 'konva';
 import type {
+    ImageConfig,
     KonvaLayer,
     KonvaNamespace,
     KonvaStage,
-    ImageConfig,
     NodeConfig,
     StageConfig,
     TextConfig,
 } from './konva.types.js';
-
-const Konva = KonvaNs as unknown as KonvaNamespace;
-import {Canvas, GlobalFonts, loadImage} from '@napi-rs/canvas';
+import {Canvas, loadImage} from '@napi-rs/canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {createHash} from "node:crypto";
+
+const Konva = KonvaNs as unknown as KonvaNamespace;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 全局 Konva 配置

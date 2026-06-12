@@ -6,7 +6,7 @@
  * 每个 Worker 持有浏览器连接和页面池，页面按模板 MD5 复用。
  */
 import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
-import {type Engine, logger, type RenderOptions, PerfTimer, scanFontsDir, resolveFontsDir, createNoopImageLoader} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, scanFontsDir, resolveFontsDir} from "@render-server/core";
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname, join} from "node:path";
@@ -69,8 +69,6 @@ export class PlaywrightEngine implements Engine {
   #pagePool = new Map<string, PoolEntry>();
   #initialized = false;
   #pagesDir!: string;
-  /** 图片加载器统一接口占位（实际由浏览器加载） */
-  #imageLoader = createNoopImageLoader();
 
   /**
    * @param browser - 已连接的 Playwright Browser 实例
