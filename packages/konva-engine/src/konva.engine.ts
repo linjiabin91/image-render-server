@@ -167,8 +167,6 @@ export class KonvaEngine implements Engine {
             const canvas = (layer.canvas as any)._canvas;
             return {stage, canvas, layer};
         });
-        const prevKey = this.#cacheKeyMap.get(entry.stage);
-        const isCacheHit = prevKey === cacheKey && (entry.layer.children?.length ?? 0) > 0;
 
         // MISS：预加载图片 + 全量重建
         await this.#preloadImages(resolvedJson);
