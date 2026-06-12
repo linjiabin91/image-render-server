@@ -94,8 +94,6 @@ export class LeaferEngine implements Engine {
         }
 
         const {width, height, format, quantity, pixelRatio = 1} = params.options;
-        const pw = Math.ceil(width * pixelRatio);
-        const ph = Math.ceil(height * pixelRatio);
         const json = params.templateJson;
         const perf = new PerfTimer("render");
 
@@ -109,7 +107,7 @@ export class LeaferEngine implements Engine {
             options: params.options,
             templateJson: json
         })).digest("hex");
-        const leafer = this.#leaferPool.acquire(cacheKey, () => new Leafer({width, height, usePartRender: true}));
+        const leafer = this.#leaferPool.acquire(cacheKey, () => new Leafer({width, height, pixelRatio, usePartRender: true}));
         const prevKey = this.#cacheKeyMap.get(leafer);
         const isCacheHit = prevKey === cacheKey && leafer.children.length > 0;
 
@@ -131,17 +129,17 @@ export class LeaferEngine implements Engine {
         let result: Buffer;
         if (format === "png") {
             const ctx = (leafer.view as any).getContext("2d") as CanvasRenderingContext2D;
-            const imageData = ctx.getImageData(0, 0, pw, ph);
+            const imageData = ctx.getImageData(0, 0, width, height);
             perf.mark("readPixels");
-            result = encodePngRgba(imageData.data, pw, ph);
+            result = encodePngRgba(imageData.data, width, height);
             perf.mark("encode");
         } else {
             // Leafer 使用 jpg 而非 jpeg
-            result = (await leafer.export(format, {quality: quantity, blob: true})).data;
+            result = (await leafer.export(format, {quality: quantity, blob: true, pixelRatio: pixelRatio})).data;
             perf.mark("readPixels+encode");
         }
 
-        logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
+        logger.info({steps: perf.steps(), format, size: `${width}x${height}`}, "render");
         return result;
     }
 
