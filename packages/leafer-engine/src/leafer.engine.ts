@@ -1,4 +1,13 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, ObjectPool, encodePngRgba} from "@render-server/core";
+import {
+    type Engine,
+    logger,
+    PerfTimer,
+    type RenderOptions,
+    resolveVariables,
+    autoRegisterFonts,
+    ObjectPool,
+    encodePngRgba
+} from "@render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
@@ -58,6 +67,7 @@ export class LeaferEngine implements Engine {
     #initialized = false;
     /** 记录每个 Leafer 实例的 cacheKey，用于缓存命中判断 */
     #cacheKeyMap = new WeakMap<Leafer, string>();
+
     /**
      * 初始化引擎，建立 Leafer 画布环境
      */
@@ -127,14 +137,8 @@ export class LeaferEngine implements Engine {
             perf.mark("encode");
         } else {
             // Leafer 使用 jpg 而非 jpeg
-            const leaferFormat = format === 'jpeg' ? 'jpg' : format;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- leafer export 类型不完整
-            const exportResult = await (leafer as any).export(leaferFormat, {quality: quantity});
-            const data = (exportResult as any).data;
-            result = typeof data === 'string'
-                ? Buffer.from(data.split(',')[1] || data, 'base64')
-                : Buffer.from(data);
-            perf.mark("export+encode");
+            result = (await leafer.export(format, {quality: quantity, blob: true})).data;
+            perf.mark("readPixels+encode");
         }
 
         logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");
