@@ -13,3 +13,5 @@ export { ObjectPool } from "./pool.js";
 export type { PatchedCanvas } from "./canvas-patch.js";
 export { patchCanvas } from "./canvas-patch.js";
 export { encodePngRgba } from "./encode.js";
+export type { ImageLike, FabricObject, FabricTemplateJson, FabricObjectLike } from "./fabric-shared.js";
+export { normalizeImageOptions, collectImageUrls } from "./fabric-shared.js";

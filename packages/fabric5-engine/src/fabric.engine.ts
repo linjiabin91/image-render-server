@@ -2,14 +2,17 @@ import {
     autoRegisterFonts,
     createHttpImageLoader,
     encodePngRgba,
+    normalizeImageOptions,
     ObjectPool,
     patchCanvas,
+    collectImageUrls,
     type Engine,
     logger,
     PerfTimer,
     type RenderOptions,
     resolveVariables
 } from "@render-server/core";
+import type {FabricObject, FabricTemplateJson, FabricObjectLike, ImageLike} from "@render-server/core";
 import {Fabric5SkiaFontRegistry} from "./fabric5-skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
@@ -64,28 +67,6 @@ const imageLoader = createHttpImageLoader(async (buf) => loadImage(buf), {
 // CSS 约束修正
 // ═══════════════════════════════════════════════════════════════════════════
 
-const normalizeImageOptions = (options: Record<string, unknown> | undefined, imgElement: unknown) => {
-    if (!options || !imgElement) return;
-    const elemW = (imgElement as Record<string, number>).naturalWidth || (imgElement as Record<string, number>).width || 0;
-    const elemH = (imgElement as Record<string, number>).naturalHeight || (imgElement as Record<string, number>).height || 0;
-    if (elemW === 0 || elemH === 0) return;
-
-    const optW = Number(options.width) || 0;
-    const optH = Number(options.height) || 0;
-    if (optW === 0 || optH === 0) return;
-
-    const scaleX = Number(options.scaleX) || 1;
-    const scaleY = Number(options.scaleY) || 1;
-
-    if (optW < elemW * 0.9 && optH < elemH * 0.9 && Math.abs(scaleX - scaleY) / Math.max(scaleX, scaleY) < 0.01) {
-        const displayW = optW * scaleX;
-        const displayH = optH * scaleY;
-        options.width = elemW;
-        options.height = elemH;
-        options.scaleX = displayW / elemW;
-        options.scaleY = displayH / elemH;
-    }
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Fabric 拦截器
@@ -94,14 +75,14 @@ const normalizeImageOptions = (options: Record<string, unknown> | undefined, img
 fabric.Image.fromURL = ((url: string, callback: (img?: fabric.Image) => void, imgOptions?: Record<string, unknown>) => {
     const cachedImg = imageLoader.getCached(url);
     if (cachedImg) {
-        normalizeImageOptions(imgOptions, cachedImg);
+        normalizeImageOptions(imgOptions, cachedImg as ImageLike);
         callback(new fabric.Image(cachedImg as unknown as HTMLImageElement, imgOptions));
         return;
     }
 
     imageLoader.load(url).then((imgElement: unknown) => {
         try {
-            normalizeImageOptions(imgOptions, imgElement);
+            normalizeImageOptions(imgOptions, imgElement as ImageLike);
             callback(new fabric.Image(imgElement as unknown as HTMLImageElement, imgOptions));
         } catch {
             callback();
@@ -128,7 +109,7 @@ ImageKlass.fromObject = function (_object: Record<string, unknown>, callback: (i
             callback(null, true);
             return;
         }
-        normalizeImageOptions(object, img);
+        normalizeImageOptions(object, img as ImageLike);
         const ImageProto = fabric.Image.prototype as unknown as Record<string, unknown>;
         const initFilters = ImageProto._initFilters as (this: unknown, filters: unknown[], cb: (f: unknown[]) => void) => void;
         initFilters.call(object, object.filters || [], (filters: unknown[]) => {
@@ -146,26 +127,6 @@ ImageKlass.fromObject = function (_object: Record<string, unknown>, callback: (i
 };
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────
-
-export interface FabricObject {
-    type: string;
-    id?: string;
-    name?: string;
-    src?: string;
-    text?: string;
-
-    [key: string]: unknown;
-}
-
-export interface FabricTemplateJson {
-    version: string;
-    background?: string;
-    objects: FabricObject[];
-    clipPath?: Record<string, unknown>;
-    backgroundImage?: Record<string, unknown>;
-
-    [key: string]: unknown;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 引擎
@@ -308,24 +269,6 @@ export class FabricEngine implements Engine {
         skCanvas.renderAll();
     }
 
-}
-
-/** Fabric 对象最小接口 — 用于 smartUpdate 避免 as any */
-interface FabricObjectLike {
-    id?: string;
-    set(key: string, value: unknown): void;
-    set(options: Record<string, unknown>): void;
-}
-
-// ── 工具函数 ──────────────────────────────────────────────────────────────
-
-function collectImageUrls(json: FabricTemplateJson): string[] {
-    const urls = new Set<string>();
-    for (const obj of json.objects) {
-        if (obj.type === "image" && obj.src) urls.add(obj.src);
-    }
-    if (json.backgroundImage?.src) urls.add(json.backgroundImage.src as string);
-    return [...urls];
 }
 
 export {resetFailedImages};

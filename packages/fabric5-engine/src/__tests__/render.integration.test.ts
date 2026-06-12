@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { toQuantity } from '@render-server/core';
-import { FabricEngine, type FabricTemplateJson } from '../fabric.engine.js';
+import { FabricEngine } from '../fabric.engine.js';
+import type { FabricTemplateJson } from '@render-server/core';
 
 describe('Fabric5Engine render', () => {
     it('renders text-only template to PNG buffer', async () => {

@@ -1,4 +1,5 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas, encodePngRgba} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas, encodePngRgba, normalizeImageOptions, collectImageUrls} from "@render-server/core";
+import type {ImageLike, FabricObject, FabricTemplateJson, FabricObjectLike} from "@render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 
@@ -28,32 +29,6 @@ const imageLoader = createHttpImageLoader(async (buf) => loadImage(buf), {
 // ═══════════════════════════════════════════════════════════════════════════
 // CSS 约束修正 — 前端 CSS object-fit 导致的 width/scaleX 错配
 // ═══════════════════════════════════════════════════════════════════════════
-
-/** 图片对象最小接口 — 包含 Fabric CSS 约束修正所需的属性 */
-interface ImageLike {
-    width: number;
-    height: number;
-    naturalWidth?: number;
-    naturalHeight?: number;
-}
-
-const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl: ImageLike) => {
-    if (!opts || !imgEl) return;
-    const ew = imgEl.naturalWidth || imgEl.width || 0;
-    const eh = imgEl.naturalHeight || imgEl.height || 0;
-    if (!ew || !eh) return;
-    const ow = Number(opts.width) || 0;
-    const oh = Number(opts.height) || 0;
-    if (!ow || !oh) return;
-    const sx = Number(opts.scaleX) || 1;
-    const sy = Number(opts.scaleY) || 1;
-    if (ow < ew * 0.9 && oh < eh * 0.9 && Math.abs(sx - sy) / Math.max(sx, sy) < 0.01) {
-        opts.width = ew;
-        opts.height = eh;
-        opts.scaleX = (ow * sx) / ew;
-        opts.scaleY = (oh * sy) / eh;
-    }
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 替换 Fabric 7 内部 document — 拦截 createElement('canvas') 返回 @napi-rs/canvas
@@ -126,26 +101,6 @@ FabricImage.fromURL = ((url: string, callback?: (img?: FabricImage) => void, img
 }) as unknown as typeof FabricImage.fromURL;
 
 // ── 类型 ──────────────────────────────────────────────────────────────────
-
-export interface FabricObject {
-    type: string;
-    id?: string;
-    name?: string;
-    src?: string;
-    text?: string;
-
-    [key: string]: unknown;
-}
-
-export interface FabricTemplateJson {
-    version: string;
-    background?: string;
-    objects: FabricObject[];
-    clipPath?: Record<string, unknown>;
-    backgroundImage?: Record<string, unknown>;
-
-    [key: string]: unknown;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 引擎
@@ -296,20 +251,3 @@ export class FabricEngine implements Engine {
 
 }
 
-/** Fabric 对象最小接口 — 用于 smartUpdate 避免 as any */
-interface FabricObjectLike {
-    id?: string;
-
-    set(key: string, value: unknown): void;
-
-    set(options: Record<string, unknown>): void;
-}
-
-function collectImageUrls(j: FabricTemplateJson): string[] {
-    const s = new Set<string>();
-    for (const o of j.objects) {
-        if (o.type === "image" && o.src) s.add(o.src);
-    }
-    if (j.backgroundImage?.src) s.add(j.backgroundImage.src as string);
-    return [...s];
-}
