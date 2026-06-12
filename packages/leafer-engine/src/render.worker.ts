@@ -4,19 +4,12 @@
  * Piscina 自动调用本文件的 default export，Worker 常驻内存复用 LeaferEngine 实例。
  */
 import type {RenderOptions} from "@render-server/core";
+import {autoRegisterFonts} from "@render-server/core";
 import {LeaferEngine, type LeaferTemplateJson} from "./leafer.engine.js";
-import {GlobalFonts} from '@napi-rs/canvas'
-import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {LeaferNapiCanvasFontRegistry} from "./leafer-napi-canvas-font-registry.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// src/ 和 dist/ 中 ../../core/fonts/ 都指向 packages/core/fonts/
-GlobalFonts.registerFromPath(
-    join(__dirname, '../../core/fonts/AlibabaPuHuiTi-3-45-Light.ttf'),
-    'AlibabaPuHuiTi-3-45-Light'
-)
+// 扫描并注册所有字体
+autoRegisterFonts(new LeaferNapiCanvasFontRegistry(), import.meta.url);
 const engine = new LeaferEngine();
 
 /** Worker 接收的渲染参数 */

@@ -22,11 +22,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "start:leafer": "LOG_PRETTY=true node packages/leafer-engine/dist/server.js",
-    "start:konva": "LOG_PRETTY=true node packages/konva-engine/dist/server.js",
-    "start:fabric": "LOG_PRETTY=true node packages/fabric-engine/dist/server.js",
-    "start:fabric5": "LOG_PRETTY=true node packages/fabric5-engine/dist/server.js",
-    "start:playwright": "LOG_PRETTY=true node packages/playwright-engine/dist/server.js"
+    "start:leafer": "pnpm run build && LOG_PRETTY=true node packages/leafer-engine/dist/server.js",
+    "start:konva": "pnpm run build && LOG_PRETTY=true node packages/konva-engine/dist/server.js",
+    "start:fabric": "pnpm run build && LOG_PRETTY=true node packages/fabric-engine/dist/server.js",
+    "start:fabric5": "pnpm run build && LOG_PRETTY=true node packages/fabric5-engine/dist/server.js",
+    "start:playwright": "pnpm run build && LOG_PRETTY=true node packages/playwright-engine/dist/server.js"
   },
   "workspaces": [
     "packages/*"

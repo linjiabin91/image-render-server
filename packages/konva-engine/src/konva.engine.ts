@@ -1,4 +1,5 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {NapiCanvasFontRegistry} from "./napi-canvas-font-registry.js";
 // Konva 类型定义在 TS 6.0 下无法正确解析，运行时导入 + 类型断言绕过
 import KonvaNs from 'konva';
 import type {
@@ -15,9 +16,6 @@ const Konva = KonvaNs as unknown as KonvaNamespace;
 import {Canvas, GlobalFonts, loadImage} from '@napi-rs/canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {createHash} from "node:crypto";
-import {dirname, resolve} from "node:path";
-import {fileURLToPath} from "node:url";
-import {existsSync, readdirSync, statSync} from "node:fs";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 全局 Konva 配置
@@ -26,27 +24,10 @@ import {existsSync, readdirSync, statSync} from "node:fs";
 Konva.autoDrawEnabled = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 字体管理 — 扫描 core/fonts/ 注册 TTF/OTF
+// 字体管理
 // ═══════════════════════════════════════════════════════════════════════════
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const fontsDir = resolve(__dirname, '../../core/fonts');
-
-if (existsSync(fontsDir)) {
-    for (const file of readdirSync(fontsDir)) {
-        const lower = file.toLowerCase();
-        if (!lower.endsWith('.ttf') && !lower.endsWith('.otf')) continue;
-        const fullPath = resolve(fontsDir, file);
-        if (!statSync(fullPath).isFile()) continue;
-        const name = file.slice(0, lower.endsWith('.ttf') ? -4 : -4);
-        try {
-            GlobalFonts.registerFromPath(fullPath, name);
-        } catch (err) {
-            logger.warn({err, font: name}, "font registration failed");
-        }
-    }
-}
+autoRegisterFonts(new NapiCanvasFontRegistry(), import.meta.url);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Canvas 修补 — 补齐 Konva 需要的 DOM 属性

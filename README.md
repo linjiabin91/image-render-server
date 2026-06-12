@@ -114,6 +114,53 @@ render-server/
 | playwright | 浏览器 | Chromium + page.screenshot() | 动态加载各引擎 HTML 页面 | 页面内增量 |
 | konva | Node.js | konva + @napi-rs/canvas | tag/className 标识, url/image 标识图片 | text/image 增量 |
 
+## 字体管理
+
+服务内置**阿里巴巴普惠体 3（AlibabaPuHuiTi-3）**，提供 9 个字重（Thin 35 ~ Black 115）。
+
+字体文件集中存储在 `packages/core/fonts/`。
+
+### 文件名约定
+
+字体注册器通过文件名自动推断族名和字重：
+
+```
+AlibabaPuHuiTi-3-45-Light.ttf
+└─── 族名 ──┘↑└─ 描述 ─┘
+             字重
+```
+
+`{familyPrefix}-{weightIndex}-{weightName}.ttf` → `family=AlibabaPuHuiTi-3`, `weight=45`
+
+### 添加自定义字体
+
+在 `packages/core/fonts/` 下按约定命名放置 `.ttf` 或 `.otf` 文件即可，重启后自动生效。
+
+### 环境变量 `FONTS_DIR`
+
+默认字体目录为相对于引擎包的 `../../core/fonts`。如需使用外部字体目录：
+
+```bash
+FONTS_DIR=/data/custom-fonts node packages/fabric-engine/dist/server.js
+```
+
+`FONTS_DIR` 为绝对路径，设置后将完全替代默认路径，引擎不再扫描 `core/fonts/`。
+
+### FontRegistry 接口
+
+各实现类位于引擎包内的独立文件中：
+
+| 文件 | 实现类 | 后端 |
+|------|--------|------|
+| `packages/fabric-engine/src/skia-font-registry.ts` | `SkiaFontRegistry` | skia-canvas `FontLibrary.use()` |
+| `packages/fabric5-engine/src/fabric5-skia-font-registry.ts` | `Fabric5SkiaFontRegistry` | skia-canvas `FontLibrary.use()` |
+| `packages/konva-engine/src/napi-canvas-font-registry.ts` | `NapiCanvasFontRegistry` | @napi-rs/canvas `GlobalFonts.registerFromPath()` |
+| `packages/leafer-engine/src/leafer-napi-canvas-font-registry.ts` | `LeaferNapiCanvasFontRegistry` | @napi-rs/canvas `GlobalFonts.registerFromPath()` |
+
+Playwright 引擎的字体注册通过 HTML 页面的 CSS `@font-face` 实现，不经过 FontRegistry 接口。
+
+引擎模块顶层自动调用 `autoRegisterFonts()`，用户无需手动初始化。
+
 ## 请求链路
 
 ```
@@ -214,6 +261,7 @@ curl -X POST http://127.0.0.1:3000/api/render \
 | `LOG_LEVEL` | `info` | Pino 日志级别（trace/debug/info/warn/error/fatal） |
 | `LOG_PRETTY` | 未设置 | 设为 `true` 启用 pino-pretty 格式化日志输出（开发用） |
 | `IMAGE_FETCH_TIMEOUT` | `10000` | 图片下载超时（毫秒） |
+| `FONTS_DIR` | 见字体管理 | 字体目录绝对路径，覆盖引擎默认的字体扫描路径 |
 
 ## 模板格式
 
@@ -369,6 +417,12 @@ export async function startServer(port: number): Promise<void> {
 # Leafer（默认）
 docker build -t render-server:leafer -f packages/leafer-engine/Dockerfile .
 docker run -p 3000:3000 render-server:leafer
+
+# 使用自定义字体目录（挂载卷 + 环境变量）
+docker run -p 3000:3000 \
+  -v /host/custom-fonts:/data/fonts \
+  -e FONTS_DIR=/data/fonts \
+  render-server:leafer
 
 # Fabric 5
 docker build -t render-server:fabric5 -f packages/fabric5-engine/Dockerfile .

@@ -57,6 +57,9 @@ COPY --from=builder /app/packages/server/dist packages/server/dist
 COPY --from=builder /app/packages/playwright-engine/package.json packages/playwright-engine/
 COPY --from=builder /app/packages/playwright-engine/dist packages/playwright-engine/dist
 
+# 字体目录覆盖（不设置则使用内置字体 packages/core/fonts/）
+ENV FONTS_DIR=
+
 EXPOSE 3000
 
 CMD ["node", "packages/playwright-engine/dist/server.js"]

@@ -1,4 +1,5 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
+import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, FontLibrary, Image, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
 import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas, Text as FabricText} from 'fabric/node';
@@ -13,52 +14,15 @@ import {
     unlinkSync,
     writeFileSync
 } from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {LRUCache} from 'lru-cache';
-import {fileURLToPath} from "node:url";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 字体管理
 // ═══════════════════════════════════════════════════════════════════════════
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const fontsDir = resolve(__dirname, '../../core/fonts');
-
-if (existsSync(fontsDir)) {
-    // 按族名前缀分组：AlibabaPuHuiTi-3-45-Light.ttf → 族名 AlibabaPuHuiTi-3
-    const fontGroups = new Map<string, string[]>();
-    for (const file of readdirSync(fontsDir)) {
-        const lower = file.toLowerCase();
-        if (!lower.endsWith('.ttf') && !lower.endsWith('.otf')) continue;
-        const fullPath = resolve(fontsDir, file);
-        if (!statSync(fullPath).isFile()) continue;
-        const name = file.slice(0, file.length - (lower.endsWith('.ttf') ? 4 : 4));
-        // 文件名格式：{familyPrefix}-{weightIndex}-{weightName}
-        // 去掉最后两段得到族名前缀
-        const parts = name.split('-');
-        const family = parts.length >= 3 ? parts.slice(0, -2).join('-') : name;
-        if (!fontGroups.has(family)) fontGroups.set(family, []);
-        fontGroups.get(family)!.push(fullPath);
-    }
-    for (const [family, paths] of fontGroups) {
-        try {
-            FontLibrary.use(family, paths.length === 1 ? paths[0] : paths);
-        } catch (err) {
-            logger.warn({err, font: family}, "font group registration failed");
-        }
-        // 同时按原始完整名称单个注册，兼容旧模板 fontFamily: 'AlibabaPuHuiTi-3-45-Light'
-        for (const path of paths) {
-            const name = path.split('/').pop()!.replace(/\.(ttf|otf)$/i, '');
-            try {
-                FontLibrary.use(name, path);
-            } catch (err) {
-                logger.warn({err, font: name}, "font alias registration failed");
-            }
-        }
-    }
-}
+autoRegisterFonts(new SkiaFontRegistry(), import.meta.url);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 多级图片缓存（进程内 LRU → 磁盘 → HTTP）
