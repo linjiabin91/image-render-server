@@ -1,12 +1,16 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts} from "@render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
 import {CompressionType, Transformer} from '@napi-rs/image'
 import {createHash} from "node:crypto";
 import {IUI} from "@leafer-ui/interface";
+import {LeaferNapiCanvasFontRegistry} from "./leafer-napi-canvas-font-registry.js";
 
 useCanvas('napi', napi) // must
+
+// 字体注册
+autoRegisterFonts(new LeaferNapiCanvasFontRegistry(), import.meta.url);
 
 /** Leafer 节点 — 递归结构 */
 export interface LeaferNode {

@@ -8,3 +8,4 @@ export { PerfTimer } from "./perf.js";
 export { resolveVariables } from "./resolve-variables.js";
 export type { ImageLoader, ImageDecoder, HttpImageLoaderOptions } from "./image-loader.js";
 export { createHttpImageLoader, createNoopImageLoader } from "./image-loader.js";
+export { createRenderWorker } from "./worker.js";
