@@ -6,12 +6,16 @@
  * 每个 Worker 持有浏览器连接和页面池，页面按模板 MD5 复用。
  */
 import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
-import {type Engine, logger, type RenderOptions, PerfTimer} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, scanFontsDir, resolveFontsDir} from "@render-server/core";
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname, join} from "node:path";
+import {PlaywrightFontRegistry} from "./playwright-font-registry.js";
 
 // ── 常量 ──────────────────────────────────────────────────────────────────
+
+/** 模块级：预扫描字体定义，供注册器使用 */
+const _allFonts = scanFontsDir(resolveFontsDir(import.meta.url));
 
 /** 页面池最大容量 */
 const POOL_MAX = 10;
@@ -138,6 +142,8 @@ export class PlaywrightEngine implements Engine {
       // (5) 导航：仅在 URL 不同时 reload，复用已加载页面
       if (entry.page.url() !== pageUrl) {
         await entry.page.goto(pageUrl, {waitUntil: "load", timeout: DRAW_TIMEOUT});
+        // 注入字体 @font-face CSS 并等待加载完毕
+        await new PlaywrightFontRegistry(entry.page).register(_allFonts);
       }
       perf.mark("goto");
       // (6) 调用 draw({options, templateJson, cacheKey})

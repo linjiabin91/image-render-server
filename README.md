@@ -116,25 +116,30 @@ render-server/
 
 ## 字体管理
 
-服务内置**阿里巴巴普惠体 3（AlibabaPuHuiTi-3）**，提供 9 个字重（Thin 35 ~ Black 115）。
+服务内置**阿里巴巴普惠体 3（AlibabaPuHuiTi-3）**，提供 Light（CSS 300）、Normal（CSS 400）和 Bold（CSS 700）三个字重。
 
-字体文件集中存储在 `packages/core/fonts/`。
+字体文件集中存储在 `packages/core/fonts/`。服务端引擎使用 `.ttf`，Playwright 引擎优先使用 `.woff2`。
 
-### 文件名约定
+### 文件名约定与字重映射
 
-字体注册器通过文件名自动推断族名和字重：
+字体注册器通过文件名自动推断族名和字重，并将厂商字重映射为 CSS 标准字重：
 
-```
-AlibabaPuHuiTi-3-45-Light.ttf
-└─── 族名 ──┘↑└─ 描述 ─┘
-             字重
-```
-
-`{familyPrefix}-{weightIndex}-{weightName}.ttf` → `family=AlibabaPuHuiTi-3`, `weight=45`
+| 文件 | 厂商字重 | CSS font-weight |
+|------|----------|-----------------|
+| `AlibabaPuHuiTi-3-45-Light.ttf` | 45 | 300 (light) |
+| `AlibabaPuHuiTi-3-55-Regular.ttf` | 55 | 400 (normal) |
+| `AlibabaPuHuiTi-3-85-Bold.ttf` | 85 | 700 (bold) |
 
 ### 添加自定义字体
 
-在 `packages/core/fonts/` 下按约定命名放置 `.ttf` 或 `.otf` 文件即可，重启后自动生效。
+在 `packages/core/fonts/` 下按约定命名放置 `.ttf` 或 `.otf` 文件，然后在引擎调用处补充 `weightMap`：
+
+```typescript
+// 例：加入字重 65 → CSS 500
+autoRegisterFonts(registry, import.meta.url, undefined, {
+  weightMap: {45: 300, 55: 400, 85: 700, 65: 500},
+});
+```
 
 ### 环境变量 `FONTS_DIR`
 
@@ -144,7 +149,7 @@ AlibabaPuHuiTi-3-45-Light.ttf
 FONTS_DIR=/data/custom-fonts node packages/fabric-engine/dist/server.js
 ```
 
-`FONTS_DIR` 为绝对路径，设置后将完全替代默认路径，引擎不再扫描 `core/fonts/`。
+`FONTS_DIR` 为绝对路径，设置后将完全替代默认目录。
 
 ### FontRegistry 接口
 
@@ -157,7 +162,7 @@ FONTS_DIR=/data/custom-fonts node packages/fabric-engine/dist/server.js
 | `packages/konva-engine/src/napi-canvas-font-registry.ts` | `NapiCanvasFontRegistry` | @napi-rs/canvas `GlobalFonts.registerFromPath()` |
 | `packages/leafer-engine/src/leafer-napi-canvas-font-registry.ts` | `LeaferNapiCanvasFontRegistry` | @napi-rs/canvas `GlobalFonts.registerFromPath()` |
 
-Playwright 引擎的字体注册通过 HTML 页面的 CSS `@font-face` 实现，不经过 FontRegistry 接口。
+Playwright 引擎的字体通过 `packages/playwright-engine/src/fonts.ts` 统一注入 HTML 页面，不经过 FontRegistry 接口。
 
 引擎模块顶层自动调用 `autoRegisterFonts()`，用户无需手动初始化。
 

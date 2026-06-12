@@ -3,23 +3,6 @@
 <head>
   <meta charset="utf-8">
   <style>
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-35-Thin.ttf') format('truetype'); font-weight: 35; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.woff2') format('woff2'); font-weight: 45; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-55-Regular.ttf') format('truetype'); font-weight: 55; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-65-Medium.ttf') format('truetype'); font-weight: 65; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-75-SemiBold.ttf') format('truetype'); font-weight: 75; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-85-Bold.ttf') format('truetype'); font-weight: 85; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-95-ExtraBold.ttf') format('truetype'); font-weight: 95; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-105-Heavy.ttf') format('truetype'); font-weight: 105; }
-  @font-face { font-family: 'AlibabaPuHuiTi-3'; src: url('../../../core/fonts/AlibabaPuHuiTi-3-115-Black.ttf') format('truetype'); font-weight: 115; }
-
-  /* 兼容旧模板：独立 font-family 别名 */
-  @font-face {
-    font-family: 'AlibabaPuHuiTi-3-45-Light';
-    src: url('../../../core/fonts/AlibabaPuHuiTi-3-45-Light.woff2') format('woff2');
-  }
-
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
     #renderContainer { position: relative; }
@@ -139,7 +122,6 @@ function preloadImages(urls) {
 // ── 主入口 ────────────────────────────────────────────────────────────────
 
 async function draw(params) {
-  await document.fonts.load("12px \"AlibabaPuHuiTi-3-45-Light\"");
   var options = params.options;
   var templateJson = params.templateJson;
   var cacheKey = params.cacheKey;

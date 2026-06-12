@@ -10,3 +10,4 @@ dist
 *.log
 .pnpm-debug.log
 /CLAUDE.md
+/.codegraph/
