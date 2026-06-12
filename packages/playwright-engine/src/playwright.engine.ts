@@ -140,7 +140,6 @@ export class PlaywrightEngine implements Engine {
         await entry.page.goto(pageUrl, {waitUntil: "load", timeout: DRAW_TIMEOUT});
       }
       perf.mark("goto");
-
       // (6) 调用 draw({options, templateJson, cacheKey})
       //     模板 JSON 已完成变量替换；cacheKey 用于页面内增量更新判断
       await entry.page.evaluate((data) => {
@@ -150,20 +149,31 @@ export class PlaywrightEngine implements Engine {
       await entry.page.waitForLoadState("networkidle", {timeout: DRAW_TIMEOUT});
       perf.mark("draw");
 
-      // (7) 截图 — 全部走 Playwright page.screenshot()
+      // (7) 截图 / PDF — 根据 format 选择输出方式
       const {format, quantity, pixelRatio = 1, width, height} = params.options;
       const pw = Math.ceil(width * pixelRatio);
       const ph = Math.ceil(height * pixelRatio);
 
-      const screenshotType = toScreenshotType(format);
-      const opts: PageScreenshotOptions = {
-        type: screenshotType,
-        clip: {x: 0, y: 0, width: pw, height: ph},
-      };
-      if (screenshotType === "jpeg") {
-        opts.quality = quantity;
+      let result: Buffer;
+      if (format === "pdf") {
+        result = await entry.page.pdf({
+          width: `${pw}px`,
+          height: `${ph}px`,
+          margin: {top: 0, right: 0, bottom: 0, left: 0},
+          printBackground: true,
+          displayHeaderFooter: false,
+        });
+      } else {
+        const screenshotType = toScreenshotType(format);
+        const opts: PageScreenshotOptions = {
+          type: screenshotType,
+          clip: {x: 0, y: 0, width: pw, height: ph},
+        };
+        if (screenshotType === "jpeg") {
+          opts.quality = quantity;
+        }
+        result = await entry.page.screenshot(opts);
       }
-      const result = await entry.page.screenshot(opts);
       perf.mark("screenshot");
 
       logger.info({steps: perf.steps(), format, size: `${pw}x${ph}`}, "render");

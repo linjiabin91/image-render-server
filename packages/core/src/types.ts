@@ -1,5 +1,6 @@
 /** 图片输出格式 */
-export type ImageFormat = "png" | "jpeg" | 'jpg' | 'webp' | 'pdf' | 'svg';
+export type ImageFormat = "png" | "jpeg" | 'jpg' | 'webp' | 'svg';
+export type ExportFormat = "pdf";
 
 /**
  * 0-100 的整数
@@ -28,7 +29,7 @@ export interface RenderOptions {
   /** 输出图片高度（像素） */
   height: number;
   /** 输出图片格式 */
-  format: ImageFormat;
+  format: ImageFormat | ExportFormat;
   /** 输出图片数量（0-100 的整数） */
   quantity: Quantity;
   /** 压缩级别（0-10 的整数） */

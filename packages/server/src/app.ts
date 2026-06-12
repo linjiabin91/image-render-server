@@ -4,6 +4,7 @@ import underPressure from "@fastify/under-pressure";
 import PiscinaModule from "piscina";
 import { resolve } from "node:path";
 import * as os from "node:os";
+import {RenderOptions, toQuantity} from "@render-server/core";
 
 interface PiscinaInstance {
   run(task: unknown): Promise<unknown>;
@@ -82,15 +83,25 @@ export class App {
 
   #registerRoutes(): void {
     this.#fastify.post("/api/render", async (request, reply) => {
-      const body = request.body as { options?: { format?: string } };
-      const format = body?.options?.format;
-      const contentType =
-        format === "jpeg" || format === "jpg"
-          ? "image/jpeg"
-          : format === "png"
-            ? "image/png"
-            : "application/octet-stream";
+      const body = request.body as { options: RenderOptions };
+      if (!body.options.quantity) {
+        body.options.quantity = toQuantity(92);
+      }
+      /**
+       * 转content-type 格式
+       */
+      function toContentType() {
+        const format = body.options.format;
+        let contentType = "application/octet-stream";
+        if (format === 'pdf') {
+          contentType = "application/pdf"
+        } else if (format in {png: 1, jpeg: 1, jpg: 1, webp: 1, svg: 1}) {
+          contentType = `image/${format}`;
+        }
+        return contentType;
+      }
 
+      let contentType = toContentType();
       const result = (await Promise.race([
         this.#piscina.run(request.body) as Promise<Buffer>,
         new Promise<never>((_, reject) =>
