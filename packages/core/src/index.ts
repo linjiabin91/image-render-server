@@ -12,3 +12,4 @@ export { createRenderWorker } from "./worker.js";
 export { ObjectPool } from "./pool.js";
 export type { PatchedCanvas } from "./canvas-patch.js";
 export { patchCanvas } from "./canvas-patch.js";
+export { encodePngRgba } from "./encode.js";

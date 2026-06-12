@@ -1,6 +1,7 @@
 import {
     autoRegisterFonts,
     createHttpImageLoader,
+    encodePngRgba,
     ObjectPool,
     patchCanvas,
     type Engine,
@@ -22,7 +23,7 @@ import type {
     TextConfig,
 } from './konva.types.js';
 import {Canvas, loadImage} from '@napi-rs/canvas';
-import {CompressionType, Transformer} from '@napi-rs/image';
+
 import {createHash} from "node:crypto";
 
 const Konva = KonvaNs as unknown as KonvaNamespace;
@@ -239,17 +240,9 @@ export class KonvaEngine implements Engine {
 
         let result: Buffer;
         if (format === "png") {
-            // PNG：走 getImageData + @napi-rs/image 以获得压缩等级控制
             const imageData = ctx.getImageData(0, 0, pw, ph);
             perf.mark("readPixels");
-            const tx = Transformer.fromRgbaPixels(imageData.data, pw, ph);
-            result = tx.pngSync({
-                compressionType: compressLevel === 0
-                    ? CompressionType.Default
-                    : compressLevel <= 4
-                        ? CompressionType.Best
-                        : CompressionType.Fast,
-            });
+            result = encodePngRgba(imageData.data, pw, ph, compressLevel);
             perf.mark("encode");
         } else {
             // 其他格式：@napi-rs/canvas 原生 toBuffer

@@ -1,8 +1,8 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, ObjectPool} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, ObjectPool, encodePngRgba} from "@render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'
-import {CompressionType, Transformer} from '@napi-rs/image'
+
 import {createHash} from "node:crypto";
 import {IUI} from "@leafer-ui/interface";
 import {LeaferNapiCanvasFontRegistry} from "./leafer-napi-canvas-font-registry.js";
@@ -120,15 +120,12 @@ export class LeaferEngine implements Engine {
 
         let result: Buffer;
         if (format === "png") {
-            // PNG：走 getImageData + @napi-rs/image 以获得压缩等级控制
             const ctx = (leafer.view as any).getContext("2d") as CanvasRenderingContext2D;
             const imageData = ctx.getImageData(0, 0, pw, ph);
             perf.mark("readPixels");
-            const tx = Transformer.fromRgbaPixels(imageData.data, pw, ph);
-            result = tx.pngSync({ compressionType: CompressionType.Default });
+            result = encodePngRgba(imageData.data, pw, ph);
             perf.mark("encode");
         } else {
-            // 其他格式：leafer 原生导出
             const leaferFormat = format === 'jpeg' ? 'jpg' : format;
             const exportResult = await (leafer as any).export(leaferFormat, {quality: quantity});
             const data = (exportResult as any).data;

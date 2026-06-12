@@ -1,7 +1,7 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas, encodePngRgba} from "@render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
-import {CompressionType, Transformer} from '@napi-rs/image';
+
 import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas, Text as FabricText} from 'fabric/node';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
@@ -211,14 +211,11 @@ export class FabricEngine implements Engine {
 
         let result: Buffer;
         if (format === "png") {
-            // PNG因为无法控制压缩率导致必须手动采样再压缩才会更快，因此先用 raw buffer + @napi-rs/image
             const pixels = skCanvas.toBufferSync("raw");
             perf.mark("pixels");
-            const tx = Transformer.fromRgbaPixels(pixels, pw, ph);
-            result = await tx.png({compressionType: compressLevel == 0 ? CompressionType.Default : (compressLevel == 1 ? CompressionType.Best : CompressionType.Fast)});
+            result = encodePngRgba(pixels, pw, ph, compressLevel);
             perf.mark("encode");
         } else {
-            // 其他格式：skia-canvas 原生编码，跳过 raw buffer + @napi-rs/image 步骤
             result = skCanvas.toBufferSync(format, {quality: quantity / 100}) as Buffer;
             perf.mark("pixels+encode");
         }
