@@ -1,4 +1,4 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas} from "@render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 import {CompressionType, Transformer} from '@napi-rs/image';
@@ -59,38 +59,6 @@ const normalizeImageOptions = (opts: Record<string, unknown> | undefined, imgEl:
 // 替换 Fabric 7 内部 document — 拦截 createElement('canvas') 返回 @napi-rs/canvas
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Fabric 7 需要的 canvas 元素最小 DOM 接口 */
-interface CanvasElementLike {
-    getAttribute(name: string): string | null;
-    setAttribute(name: string, value: string): void;
-    removeAttribute(name: string): void;
-    hasAttribute(name: string): boolean;
-    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
-    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
-    classList: Pick<DOMTokenList, 'add' | 'remove' | 'contains' | 'toggle'>;
-    parentNode: Node | null;
-    style: Record<string, string>;
-    width: number;
-    height: number;
-    getContext(contextId: '2d', options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
-}
-
-const patchEl = (el: Canvas): Canvas & CanvasElementLike => {
-    const patched = el as unknown as CanvasElementLike;
-    if (!patched.getAttribute) {
-        patched.getAttribute = (n: string) => n === 'dir' ? 'ltr' : null;
-        patched.setAttribute = () => {};
-        patched.removeAttribute = () => {};
-        patched.hasAttribute = () => false;
-        patched.addEventListener = () => {};
-        patched.removeEventListener = () => {};
-        patched.classList = { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false };
-        patched.parentNode = null;
-    }
-    if (!patched.style) Object.defineProperty(el, 'style', {value: {}, writable: true});
-    return el as Canvas & CanvasElementLike;
-};
-
 const origDoc = getFabricDocument();
 const proxyDoc = new Proxy(origDoc, {
     get(target, prop, receiver) {
@@ -98,7 +66,7 @@ const proxyDoc = new Proxy(origDoc, {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- jsdom createElement
             return (tagName: string, options?: any) => {
                 if (tagName.toLowerCase() === 'canvas') {
-                    return patchEl(new Canvas(1, 1));
+                    return patchCanvas(new Canvas(1, 1));
                 }
                 return Reflect.get(target, prop, receiver)(tagName, options);
             };
@@ -225,7 +193,7 @@ export class FabricEngine implements Engine {
             templateJson: params.templateJson
         })).digest('hex');
         const fc = this.#canvasPool.acquire(cacheKey, () => {
-            const raw = patchEl(new Canvas(pw, ph));
+            const raw = patchCanvas(new Canvas(pw, ph));
             return new StaticCanvas(raw as unknown as HTMLCanvasElement, {width: pw, height: ph, renderOnAddRemove: false});
         });
         if (fc.getObjects().length === 0) fc.clear();

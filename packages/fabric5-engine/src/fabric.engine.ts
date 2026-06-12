@@ -2,6 +2,7 @@ import {
     autoRegisterFonts,
     createHttpImageLoader,
     ObjectPool,
+    patchCanvas,
     type Engine,
     logger,
     PerfTimer,
@@ -26,20 +27,7 @@ autoRegisterFonts(new Fabric5SkiaFontRegistry(), import.meta.url);
 // Skia Canvas 修补 — 补齐 Fabric 需要的 DOM 方法
 // ═══════════════════════════════════════════════════════════════════════════
 
-const patchCanvasElement = (nodeCanvas: Canvas): Canvas => {
-    const nc = nodeCanvas as unknown as Record<string, unknown>;
-    if (!nc.getAttribute) {
-        nc.getAttribute = (name: string) => name === 'dir' ? 'ltr' : null;
-    }
-    if (!nc.setAttribute) nc.setAttribute = () => {
-    };
-    if (!nc.removeAttribute) nc.removeAttribute = () => {
-    };
-    if (!nc.style) Object.defineProperty(nodeCanvas, 'style', {value: {}, writable: true});
-    return nodeCanvas;
-};
-
-fabric.util.createCanvasElement = () => patchCanvasElement(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
+fabric.util.createCanvasElement = () => patchCanvas(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
 
 // ── Font weight 兼容 patch ────────────────────────────────────────────────
 //
@@ -225,7 +213,7 @@ export class FabricEngine implements Engine {
         // (c) 渲染到 Skia 画布
         const cacheKey = createHash('md5').update(JSON.stringify({options: params.options, templateJson: params.templateJson})).digest('hex');
         const fabricCanvas = this.#canvasPool.acquire(cacheKey, () => {
-            const rawCanvas = patchCanvasElement(new Canvas(pw, ph));
+            const rawCanvas = patchCanvas(new Canvas(pw, ph));
             return new fabric.StaticCanvas(rawCanvas as unknown as HTMLCanvasElement, {
                 width: pw,
                 height: ph,

@@ -2,6 +2,7 @@ import {
     autoRegisterFonts,
     createHttpImageLoader,
     ObjectPool,
+    patchCanvas,
     type Engine,
     logger,
     PerfTimer,
@@ -38,34 +39,9 @@ Konva.autoDrawEnabled = false;
 
 autoRegisterFonts(new NapiCanvasFontRegistry(), import.meta.url);
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Canvas 修补 — 补齐 Konva 需要的 DOM 属性
-// ═══════════════════════════════════════════════════════════════════════════
-
-const patchCanvasElement = (nodeCanvas: Canvas): Canvas => {
-    const nc = nodeCanvas as unknown as Record<string, unknown>;
-    if (!nc.getAttribute) nc.getAttribute = () => null;
-    if (!nc.setAttribute) nc.setAttribute = () => {};
-    if (!nc.removeAttribute) nc.removeAttribute = () => {};
-    if (!nc.style) Object.defineProperty(nodeCanvas, 'style', {value: {}, writable: true});
-    if (!nc.getBoundingClientRect) {
-        nc.getBoundingClientRect = () => ({
-            width: (nodeCanvas as unknown as Record<string, number>).width || 0,
-            height: (nodeCanvas as unknown as Record<string, number>).height || 0,
-            top: 0,
-            left: 0,
-        });
-    }
-    if (!nc.addEventListener) nc.addEventListener = () => {};
-    if (!nc.removeEventListener) nc.removeEventListener = () => {};
-    if (!nc.focus) nc.focus = () => {};
-    if (!nc.parentNode) nc.parentNode = {style: {}};
-    return nodeCanvas;
-};
-
 /** 拦截 Konva 内部 canvas 创建，返回 @napi-rs/canvas 修补实例 */
 Konva.Util.createCanvasElement = () =>
-    patchCanvasElement(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
+    patchCanvas(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Mock 容器对象 — 满足 Konva Stage container 参数

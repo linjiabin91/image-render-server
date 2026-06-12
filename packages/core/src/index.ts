@@ -10,3 +10,5 @@ export type { ImageLoader, ImageDecoder, HttpImageLoaderOptions } from "./image-
 export { createHttpImageLoader, createNoopImageLoader } from "./image-loader.js";
 export { createRenderWorker } from "./worker.js";
 export { ObjectPool } from "./pool.js";
+export type { PatchedCanvas } from "./canvas-patch.js";
+export { patchCanvas } from "./canvas-patch.js";
