@@ -7,17 +7,93 @@ triggers:
     branches:
       include:
         - master
-  pull_request:
-    branches:
-      include:
-        - master
-
-pipeline:
-  - test:
-      name: test
-      displayName: Build & Test
-      steps:
-        - run: npm install -g pnpm@latest
-        - run: pnpm install
-        - run: pnpm run build
-        - run: pnpm run test
+stages:
+  - name: stage-88053252
+    displayName: unit_test
+    strategy: naturally
+    trigger: auto
+    executor: []
+    steps:
+      - step: ut@nodejs
+        name: unit_test_nodejs
+        displayName: 单元测试
+        nodeVersion: 23.11.1
+        commands:
+          - '# 设置NPM源，提升安装速度'
+          - npm config set registry https://registry.npmmirror.com
+          - '# 在这里输入测试命令'
+          - npm install pnpm && pnpm install && pnpm run test
+        report:
+          path: mochawesome-report
+          file: mochawesome.json
+          index: mochawesome.html
+        checkpoints: []
+        caches:
+          - ~/.pnpm
+          - ~/.yarn
+        notify: []
+        strategy:
+          retry: '0'
+      - step: build@nodejs
+        name: build_nodejs
+        displayName: Nodejs 构建
+        nodeVersion: 23.11.1
+        commands:
+          - '# 设置NPM源，提升安装速度'
+          - npm config set registry https://registry.npmmirror.com
+          - ''
+          - '# 执行编译命令'
+          - npm install pnpm && pnpm install && pnpm run build
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./dist
+        caches:
+          - ~/.pnpm
+          - ~/.yarn
+        notify: []
+        strategy:
+          retry: '0'
+      - step: build@nodejs
+        name: build_nodejs
+        displayName: Lint
+        nodeVersion: 23.11.1
+        commands:
+          - '# 设置NPM源，提升安装速度'
+          - npm config set registry https://registry.npmmirror.com
+          - ''
+          - '# 执行编译命令'
+          - pnpm run lint
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./dist
+        caches:
+          - ~/.pnpm
+          - ~/.yarn
+        notify: []
+        strategy:
+          retry: '0'
+      - step: ut@nodejs
+        name: unit_lint
+        displayName: lint
+        nodeVersion: 23.11.1
+        commands:
+          - '# 设置NPM源，提升安装速度'
+          - npm config set registry https://registry.npmmirror.com
+          - '# 在这里输入测试命令'
+          - npm install pnpm && pnpm install && pnpm run lint
+        report:
+          path: mochawesome-report
+          file: mochawesome.json
+          index: mochawesome.html
+        checkpoints: []
+        caches:
+          - ~/.npm
+          - ~/.yarn
+        notify: []
+        strategy:
+          retry: '0'
+strategy:
+  cloneDepth: 1
+  blocking: true
