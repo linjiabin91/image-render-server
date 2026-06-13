@@ -112,8 +112,12 @@ export function resolveFontsDir(
   importMetaUrl: string,
   fontsDir?: string,
 ): string {
-  return process.env.FONTS_DIR
-    ?? fontsDir
+  // FONTS_DIR 为空字符串时等同于未设置，避免 docker-compose 空值行为不一致
+  const envDir = process.env.FONTS_DIR;
+  if (envDir && envDir.trim().length > 0) {
+    return envDir.trim();
+  }
+  return fontsDir
     ?? resolve(dirname(fileURLToPath(importMetaUrl)), '../../core/fonts');
 }
 
