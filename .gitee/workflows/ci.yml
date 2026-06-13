@@ -12,15 +12,17 @@ triggers:
       include:
         - master
 
+agent:
+  label: ubuntu-latest
+
 stages:
   - name: lint
     displayName: Lint
     jobs:
       - name: lint
         displayName: Run lint
-        runs-on: ubuntu-latest
         steps:
-          - checkout: {}
+          - uses: actions/checkout@v4
           - run: |
               corepack enable
               corepack prepare pnpm@latest --activate
@@ -32,9 +34,8 @@ stages:
     jobs:
       - name: build
         displayName: Run build
-        runs-on: ubuntu-latest
         steps:
-          - checkout: {}
+          - uses: actions/checkout@v4
           - run: |
               corepack enable
               corepack prepare pnpm@latest --activate
@@ -43,12 +44,12 @@ stages:
 
   - name: test
     displayName: Test
+    dependsOn: build
     jobs:
       - name: test
         displayName: Run tests
-        runs-on: ubuntu-latest
         steps:
-          - checkout: {}
+          - uses: actions/checkout@v4
           - run: |
               corepack enable
               corepack prepare pnpm@latest --activate
