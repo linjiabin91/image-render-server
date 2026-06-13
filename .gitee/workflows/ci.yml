@@ -1,6 +1,6 @@
 version: '1.0'
 name: CI
-displayName: Gitee Go CI
+displayName: CI
 
 triggers:
   push:
@@ -12,47 +12,32 @@ triggers:
       include:
         - master
 
-agent:
-  label: ubuntu-latest
+pipeline:
+  - lint:
+      stage: Lint
+      displayName: Run lint
+      steps:
+        - checkout: '{}'
+        - run: corepack enable && corepack prepare pnpm@latest --activate
+        - run: pnpm install
+        - run: pnpm run lint
 
-stages:
-  - name: lint
-    displayName: Lint
-    jobs:
-      - name: lint
-        displayName: Run lint
-        steps:
-          - uses: actions/checkout@v4
-          - run: |
-              corepack enable
-              corepack prepare pnpm@latest --activate
-          - run: pnpm install
-          - run: pnpm run lint
+  - build:
+      stage: Build
+      displayName: Run build
+      steps:
+        - checkout: '{}'
+        - run: corepack enable && corepack prepare pnpm@latest --activate
+        - run: pnpm install
+        - run: pnpm run build
 
-  - name: build
-    displayName: Build
-    jobs:
-      - name: build
-        displayName: Run build
-        steps:
-          - uses: actions/checkout@v4
-          - run: |
-              corepack enable
-              corepack prepare pnpm@latest --activate
-          - run: pnpm install
-          - run: pnpm run build
-
-  - name: test
-    displayName: Test
-    dependsOn: build
-    jobs:
-      - name: test
-        displayName: Run tests
-        steps:
-          - uses: actions/checkout@v4
-          - run: |
-              corepack enable
-              corepack prepare pnpm@latest --activate
-          - run: pnpm install
-          - run: pnpm run build
-          - run: pnpm run test
+  - test:
+      stage: Test
+      displayName: Run tests
+      depends: build
+      steps:
+        - checkout: '{}'
+        - run: corepack enable && corepack prepare pnpm@latest --activate
+        - run: pnpm install
+        - run: pnpm run build
+        - run: pnpm run test
