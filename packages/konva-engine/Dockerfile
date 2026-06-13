@@ -37,6 +37,13 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 RUN rm -rf packages/*/src
 
+# 安装字体到系统级（fontconfig），确保 skia-canvas 的字体回退链
+# 能通过系统字体找到中文字形。仅 FontLibrary.use() 注册的字体
+# 在部分平台（如 x86_64）上的回退链可能不生效。
+RUN mkdir -p /usr/local/share/fonts/custom && \
+    cp /app/packages/core/fonts/*.ttf /usr/local/share/fonts/custom/ && \
+    fc-cache -f
+
 # 字体目录覆盖（不设置则使用内置字体 packages/core/fonts/）
 ENV FONTS_DIR=
 
