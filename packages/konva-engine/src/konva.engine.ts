@@ -163,8 +163,8 @@ export class KonvaEngine implements Engine {
             });
             const layer = new Konva.Layer();
             stage.add(layer);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any — Konva 内部属性
-            const canvas = (layer.canvas as any)._canvas;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const canvas = (layer.canvas as any)._canvas; // Konva 内部 skia-canvas 实例
             return {stage, canvas, layer};
         });
 
@@ -181,7 +181,8 @@ export class KonvaEngine implements Engine {
             // skia-canvas 加载远程图片
             const img = await this.#imageLoader.getCached(src);
             // 给 Image 节点绑定图片实例
-            imgNode.image(img as any);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            imgNode.image(img as any); // Konva Image 泛型边界
         }
         this.#cacheKeyMap.set(entry.stage, cacheKey);
         perf.mark("build");
