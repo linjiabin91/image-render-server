@@ -1,16 +1,16 @@
 {
-  "name": "@render-server/core",
-  "description": "Shared types and interfaces for render-server engines",
+  "name": "@image-render-server/core",
+  "description": "Shared types and interfaces for image-render-server engines",
   "keywords": ["image", "rendering", "leafer", "fabric", "konva", "server"],
   "private": false,
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/gabinlin/render-server"
+    "url": "https://gitee.com/gabinlin/image-render-server"
   },
   "bugs": {
-    "url": "https://gitee.com/gabinlin/render-server/issues"
+    "url": "https://gitee.com/gabinlin/image-render-server/issues"
   },
-  "homepage": "https://gitee.com/gabinlin/render-server",
+  "homepage": "https://gitee.com/gabinlin/image-render-server",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

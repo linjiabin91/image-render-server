@@ -1,4 +1,4 @@
-# render-server
+# image-render-server
 
 <p>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
@@ -12,7 +12,7 @@
 ## 架构
 
 ```
-render-server/
+image-render-server/
 ├── packages/
 │   ├── core/                      # 公共类型与接口
 │   │   ├── src/types.ts           # RenderOptions、ImageFormat 等
@@ -364,7 +364,7 @@ PNG 输出统一走 `getImageData` + `@napi-rs/image` 编码，提供 0-10 压�
 ### 1. 实现 Engine 接口
 
 ```typescript
-import { type Engine, type RenderOptions } from "@render-server/core";
+import { type Engine, type RenderOptions } from "@image-render-server/core";
 
 class MyEngine implements Engine {
   async init(): Promise<void> { /* 初始化 */ }
@@ -397,7 +397,7 @@ export default function render(params: MyRenderParams): Promise<Buffer> {
 
 ```typescript
 // packages/my-engine/src/server.ts
-import { App } from "@render-server/server";
+import { App } from "@image-render-server/server";
 export async function startServer(port: number): Promise<void> {
   const app = new App(port, new URL("render.worker.js", import.meta.url).pathname);
   await app.start();
@@ -420,25 +420,25 @@ export async function startServer(port: number): Promise<void> {
 
 ```bash
 # Leafer（默认）
-docker build -t render-server:leafer -f packages/leafer-engine/Dockerfile .
-docker run -p 3000:3000 render-server:leafer
+docker build -t image-render-server:leafer -f packages/leafer-engine/Dockerfile .
+docker run -p 3000:3000 image-render-server:leafer
 
 # 使用自定义字体目录（挂载卷 + 环境变量）
 docker run -p 3000:3000 \
   -v /host/custom-fonts:/data/fonts \
   -e FONTS_DIR=/data/fonts \
-  render-server:leafer
+  image-render-server:leafer
 
 # Fabric 5
-docker build -t render-server:fabric5 -f packages/fabric5-engine/Dockerfile .
-docker run -p 3000:3000 render-server:fabric5
+docker build -t image-render-server:fabric5 -f packages/fabric5-engine/Dockerfile .
+docker run -p 3000:3000 image-render-server:fabric5
 
 # Fabric 7
-docker build -t render-server:fabric -f packages/fabric-engine/Dockerfile .
-docker run -p 3000:3000 render-server:fabric
+docker build -t image-render-server:fabric -f packages/fabric-engine/Dockerfile .
+docker run -p 3000:3000 image-render-server:fabric
 
 # Playwright（含 Chromium）
-docker build -t render-server:playwright -f packages/playwright-engine/Dockerfile .
+docker build -t image-render-server:playwright -f packages/playwright-engine/Dockerfile .
 docker run -p 3000:3000 render-server:playwright
 
 # Konva

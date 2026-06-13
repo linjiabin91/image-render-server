@@ -1,5 +1,5 @@
 {
-  "name": "@render-server/playwright-engine",
+  "name": "@image-render-server/playwright-engine",
   "description": "Playwright 浏览器渲染引擎 — 基于 Chromium 无头浏览器的截图渲染实现",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "start": "pnpm run build && LOG_PRETTY=true node dist/server.js"
   },
   "dependencies": {
-    "@render-server/core": "*",
-    "@render-server/server": "*",
+    "@image-render-server/core": "*",
+    "@image-render-server/server": "*",
     "playwright-core": "^1.60.0"
   },
   "devDependencies": {

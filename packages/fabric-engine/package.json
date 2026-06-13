@@ -1,5 +1,5 @@
 {
-  "name": "@render-server/fabric-engine",
+  "name": "@image-render-server/fabric-engine",
   "description": "Fabric.js 7 渲染引擎 — 基于 fabric@7 + skia-canvas 的图片渲染实现",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
   "dependencies": {
     "skia-canvas": "^3.0.8",
     "@napi-rs/image": "^1.12.0",
-    "@render-server/core": "*",
-    "@render-server/server": "*",
+    "@image-render-server/core": "*",
+    "@image-render-server/server": "*",
     "fabric": "^7.4.0",
     "lru-cache": "^11.5.1"
   },

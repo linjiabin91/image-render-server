@@ -7,7 +7,7 @@ import {
     autoRegisterFonts,
     ObjectPool,
     encodePngRgba
-} from "@render-server/core";
+} from "@image-render-server/core";
 import {IUIInputData, Leafer, useCanvas} from "@leafer-ui/node";
 import {Resource} from "@leafer/core";
 import napi from '@napi-rs/canvas'

@@ -1,5 +1,5 @@
 {
-  "name": "@render-server/leafer-engine",
+  "name": "@image-render-server/leafer-engine",
   "description": "Leafer 渲染引擎 — 基于 @leafer-ui/node 的图片渲染实现",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
   "dependencies": {
     "@leafer-ui/node": "^2.1.4",
     "@leafer/core": "^2.1.4",
-    "@render-server/core": "*",
-    "@render-server/server": "*",
+    "@image-render-server/core": "*",
+    "@image-render-server/server": "*",
     "sharp": "^0.33.5",
     "@napi-rs/canvas": "^1.0.0",
     "@napi-rs/image": "^1.12.0"

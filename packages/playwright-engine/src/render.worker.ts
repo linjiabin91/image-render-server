@@ -5,7 +5,7 @@
  * Worker 启动时连接由 server.ts 启动的 Playwright 浏览器实例。
  */
 import {chromium} from "playwright-core";
-import {createRenderWorker} from "@render-server/core";
+import {createRenderWorker} from "@image-render-server/core";
 import {PlaywrightEngine} from "./playwright.engine.js";
 
 const endpoint = process.env.PLAYWRIGHT_BROWSER_ENDPOINT;

@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: render-server
+  name: image-render-server
 spec:
   replicas: 2
   revisionHistoryLimit: 3
   selector:
     matchLabels:
-      app: render-server
+      app: image-render-server
   template:
     spec:
       containers:
-        - name: render-server
+        - name: image-render-server
           # 通过 overlay 替换 image
-          image: render-server:latest
+          image: image-render-server:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
@@ -24,12 +24,12 @@ spec:
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: render-server-config
+                  name: image-render-server-config
                   key: LOG_LEVEL
             - name: IMAGE_FETCH_TIMEOUT
               valueFrom:
                 configMapKeyRef:
-                  name: render-server-config
+                  name: image-render-server-config
                   key: IMAGE_FETCH_TIMEOUT
           resources:
             requests:

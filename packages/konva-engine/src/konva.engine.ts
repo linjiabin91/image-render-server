@@ -8,7 +8,7 @@ import {
     PerfTimer,
     type RenderOptions,
     resolveVariables
-} from "@render-server/core";
+} from "@image-render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 // 1. 先执行，模拟 Node 环境
 import Konva from 'konva'

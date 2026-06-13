@@ -8,7 +8,7 @@
  * 服务端引擎用 ttf，Playwright 自动切换为 woff2。
  */
 import {existsSync} from "node:fs";
-import {type FontDefinition, type FontRegistry, logger} from "@render-server/core";
+import {type FontDefinition, type FontRegistry, logger} from "@image-render-server/core";
 import {pathToFileURL} from "node:url";
 import {type Page} from "playwright-core";
 

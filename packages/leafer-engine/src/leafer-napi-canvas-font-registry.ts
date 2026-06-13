@@ -4,7 +4,7 @@
  * 逐个文件注册到 @napi-rs/canvas 的 GlobalFonts。
  * 与 konva-engine 的 NapiCanvasFontRegistry 相互独立。
  */
-import {type FontDefinition, type FontRegistry, logger} from "@render-server/core";
+import {type FontDefinition, type FontRegistry, logger} from "@image-render-server/core";
 import napi from '@napi-rs/canvas';
 
 export class LeaferNapiCanvasFontRegistry implements FontRegistry {

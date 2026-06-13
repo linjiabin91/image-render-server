@@ -8,7 +8,7 @@
  * 由于 Piscina 不支持传递自定义初始化参数，只能通过 process.env 共享。
  */
 import {chromium} from "playwright-core";
-import {App} from "@render-server/server";
+import {App} from "@image-render-server/server";
 import {fileURLToPath} from "node:url";
 import {resolve} from "node:path";
 

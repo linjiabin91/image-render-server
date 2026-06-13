@@ -1,5 +1,5 @@
 /**
- * @render-server/benchmark — HTTP 压测工具
+ * @image-render-server/benchmark — HTTP 压测工具
  *
  * 基于 autocannon 对渲染服务的 POST /api/render 接口进行压力测试。
  *
@@ -106,7 +106,7 @@ function parseArgs(): CliArgs {
 
 function printHelp(): void {
   console.log(`
-  @render-server/benchmark — 渲染服务 HTTP 压测工具
+  @image-render-server/benchmark — 渲染服务 HTTP 压测工具
 
   用法:
     node dist/index.js [选项]

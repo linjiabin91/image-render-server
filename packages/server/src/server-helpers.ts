@@ -21,7 +21,7 @@ import {resolve} from "node:path";
  * @example
  * ```ts
  * // server.ts
- * import {createEngineServer} from "@render-server/server";
+ * import {createEngineServer} from "@image-render-server/server";
  * export const startServer = createEngineServer("KonvaEngine", import.meta.url);
  * ```
  */

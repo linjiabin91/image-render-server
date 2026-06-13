@@ -4,7 +4,7 @@
  * 通过 pnpm test:integration 执行。
  */
 import { describe, expect, it } from 'vitest';
-import { toQuantity } from '@render-server/core';
+import { toQuantity } from '@image-render-server/core';
 import { KonvaEngine, type KonvaTemplateJson } from '../konva.engine.js';
 
 describe('KonvaEngine render', () => {

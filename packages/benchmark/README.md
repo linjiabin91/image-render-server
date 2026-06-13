@@ -1,4 +1,4 @@
-# @render-server/benchmark
+# @image-render-server/benchmark
 
 基于 [autocannon](https://github.com/mcollina/autocannon) 的 HTTP 压力测试工具，专为渲染服务的 `POST /api/render` 接口设计。
 
@@ -6,7 +6,7 @@
 
 ```bash
 # 构建
-pnpm --filter @render-server/benchmark build
+pnpm --filter @image-render-server/benchmark build
 
 # 默认压测：20 并发，100 请求，POST http://localhost:3000/api/render
 pnpm benchmark

@@ -1,5 +1,5 @@
-import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas, encodePngRgba, normalizeImageOptions, collectImageUrls} from "@render-server/core";
-import type {ImageLike, FabricObject, FabricTemplateJson, FabricObjectLike} from "@render-server/core";
+import {type Engine, logger, PerfTimer, type RenderOptions, resolveVariables, autoRegisterFonts, createHttpImageLoader, ObjectPool, patchCanvas, encodePngRgba, normalizeImageOptions, collectImageUrls} from "@image-render-server/core";
+import type {ImageLike, FabricTemplateJson, FabricObjectLike} from "@image-render-server/core";
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 

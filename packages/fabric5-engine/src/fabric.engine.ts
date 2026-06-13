@@ -11,8 +11,8 @@ import {
     PerfTimer,
     type RenderOptions,
     resolveVariables
-} from "@render-server/core";
-import type {FabricObject, FabricTemplateJson, FabricObjectLike, ImageLike} from "@render-server/core";
+} from "@image-render-server/core";
+import type {FabricTemplateJson, FabricObjectLike, ImageLike} from "@image-render-server/core";
 import {Fabric5SkiaFontRegistry} from "./fabric5-skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';

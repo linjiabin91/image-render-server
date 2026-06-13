@@ -6,7 +6,7 @@
  * - 按 font-family 分组注册
  * - 按完整文件名注册为独立别名
  */
-import {type FontDefinition, type FontRegistry, logger} from "@render-server/core";
+import {type FontDefinition, type FontRegistry, logger} from "@image-render-server/core";
 import {FontLibrary} from 'skia-canvas';
 
 export class Fabric5SkiaFontRegistry implements FontRegistry {

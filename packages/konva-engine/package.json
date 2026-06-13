@@ -1,5 +1,5 @@
 {
-  "name": "@render-server/konva-engine",
+  "name": "@image-render-server/konva-engine",
   "description": "Konva 渲染引擎 — 基于 konva + @napi-rs/canvas 的图片渲染实现",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@napi-rs/image": "^1.12.0",
-    "@render-server/core": "*",
-    "@render-server/server": "*",
+    "@image-render-server/core": "*",
+    "@image-render-server/server": "*",
     "konva": "^10.3.0",
     "skia-canvas": "^3.0.8"
   },

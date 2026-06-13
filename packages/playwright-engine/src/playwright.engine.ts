@@ -6,7 +6,7 @@
  * 每个 Worker 持有浏览器连接和页面池，页面按模板 MD5 复用。
  */
 import {type Browser, type BrowserContext, type Page, type PageScreenshotOptions} from "playwright-core";
-import {type Engine, logger, type RenderOptions, PerfTimer, scanFontsDir, resolveFontsDir} from "@render-server/core";
+import {type Engine, logger, type RenderOptions, PerfTimer, scanFontsDir, resolveFontsDir} from "@image-render-server/core";
 import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname, join} from "node:path";

@@ -1,5 +1,5 @@
 {
-  "name": "@render-server/benchmark",
+  "name": "@image-render-server/benchmark",
   "description": "HTTP 压测工具 — 基于 autocannon 的渲染服务性能测试",
   "version": "1.0.0",
   "private": true,

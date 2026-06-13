@@ -5,7 +5,7 @@
  * - 按 font-family 分组注册（同一族名下多个字重）
  * - 兼容旧模板：每个文件按完整文件名注册为独立字体的别名
  */
-import {type FontDefinition, type FontRegistry, logger} from "@render-server/core";
+import {type FontDefinition, type FontRegistry, logger} from "@image-render-server/core";
 import {FontLibrary} from 'skia-canvas';
 
 export class SkiaFontRegistry implements FontRegistry {

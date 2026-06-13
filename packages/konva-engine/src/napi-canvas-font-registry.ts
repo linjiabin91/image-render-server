@@ -4,7 +4,7 @@
  * 逐个文件注册到 GlobalFonts。每个字体文件注册为一个独立字体（不含字重分组）。
  * @napi-rs/canvas 的 GlobalFonts 不支持按族名+字重分组注册。
  */
-import {type FontDefinition, type FontRegistry, logger} from "@render-server/core";
+import {type FontDefinition, type FontRegistry, logger} from "@image-render-server/core";
 import {GlobalFonts} from '@napi-rs/canvas';
 
 export class NapiCanvasFontRegistry implements FontRegistry {

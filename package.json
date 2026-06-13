@@ -1,17 +1,17 @@
 {
-  "name": "render-server",
+  "name": "image-render-server",
   "license": "MIT",
   "type": "module",
   "description": "Multi-engine image rendering server supporting Leafer, Fabric.js, Konva, and Playwright",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/gabinlin/render-server"
+    "url": "https://gitee.com/gabinlin/image-render-server"
   },
   "bugs": {
-    "url": "https://gitee.com/gabinlin/render-server/issues"
+    "url": "https://gitee.com/gabinlin/image-render-server/issues"
   },
-  "homepage": "https://gitee.com/gabinlin/render-server",
+  "homepage": "https://gitee.com/gabinlin/image-render-server",
   "engines": {
     "node": ">=18"
   },

@@ -1,16 +1,16 @@
 {
-  "name": "@render-server/server",
+  "name": "@image-render-server/server",
   "description": "通用 HTTP 服务层 — Fastify + Piscina 线程池，为渲染引擎提供 POST /api/render 接口",
   "keywords": ["image", "rendering", "fastify", "piscina", "server"],
   "private": false,
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/gabinlin/render-server"
+    "url": "https://gitee.com/gabinlin/image-render-server"
   },
   "bugs": {
-    "url": "https://gitee.com/gabinlin/render-server/issues"
+    "url": "https://gitee.com/gabinlin/image-render-server/issues"
   },
-  "homepage": "https://gitee.com/gabinlin/render-server",
+  "homepage": "https://gitee.com/gabinlin/image-render-server",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,7 +28,7 @@
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/under-pressure": "^9.0.3",
-    "@render-server/core": "*",
+    "@image-render-server/core": "*",
     "fastify": "^5.8.5",
     "piscina": "^5.1.4"
   }

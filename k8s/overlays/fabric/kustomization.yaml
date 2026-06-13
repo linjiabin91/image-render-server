@@ -7,6 +7,6 @@ resources:
 namePrefix: fabric-
 
 images:
-  - name: render-server
-    newName: registry/render-server
+  - name: image-render-server
+    newName: registry/image-render-server
     newTag: fabric

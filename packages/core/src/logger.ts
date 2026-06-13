@@ -11,7 +11,7 @@ import { isMainThread } from "node:worker_threads";
  *
  * 用法：
  * ```ts
- * import { logger } from "@render-server/core";
+ * import { logger } from "@image-render-server/core";
  * logger.info("service started");
  * logger.error({ err }, "render failed");
  * logger.warn({ url }, "image load timeout");

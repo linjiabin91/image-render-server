@@ -3,5 +3,5 @@
  *
  * 使用通用的 createEngineServer 挂载 Piscina worker，启动 HTTP 服务。
  */
-import {createEngineServer} from "@render-server/server";
+import {createEngineServer} from "@image-render-server/server";
 export const startServer = createEngineServer("LeaferEngine", import.meta.url);

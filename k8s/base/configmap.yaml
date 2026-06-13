@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: render-server-config
+  name: image-render-server-config
 data:
   LOG_LEVEL: "info"
   IMAGE_FETCH_TIMEOUT: "10000"

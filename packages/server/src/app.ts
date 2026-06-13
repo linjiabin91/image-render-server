@@ -4,7 +4,7 @@ import underPressure from "@fastify/under-pressure";
 import PiscinaModule from "piscina";
 import { resolve } from "node:path";
 import * as os from "node:os";
-import {RenderOptions, toQuantity} from "@render-server/core";
+import {RenderOptions, toQuantity} from "@image-render-server/core";
 
 interface PiscinaInstance {
   run(task: unknown): Promise<unknown>;
