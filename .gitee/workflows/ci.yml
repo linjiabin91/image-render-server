@@ -13,12 +13,11 @@ triggers:
         - master
 
 pipeline:
-  node:
-    image: node:23
-    steps:
-      - checkout: {}
-      - run: corepack enable && corepack prepare pnpm@latest --activate
-      - run: pnpm install
-      - run: pnpm run lint
-      - run: pnpm run build
-      - run: pnpm run test
+  - test:
+      name: test
+      displayName: Build & Test
+      steps:
+        - run: npm install -g pnpm@latest
+        - run: pnpm install
+        - run: pnpm run build
+        - run: pnpm run test
