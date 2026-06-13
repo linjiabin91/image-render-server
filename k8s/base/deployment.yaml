@@ -9,6 +9,9 @@ spec:
     matchLabels:
       app: image-render-server
   template:
+    metadata:
+      labels:
+        app: image-render-server
     spec:
       containers:
         - name: image-render-server

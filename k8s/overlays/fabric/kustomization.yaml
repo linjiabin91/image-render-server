@@ -8,5 +8,17 @@ namePrefix: fabric-
 
 images:
   - name: image-render-server
-    newName: registry/image-render-server
+    newName: image-render-server
     newTag: fabric
+
+patches:
+  - target:
+      kind: Service
+      name: image-render-server
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/port
+        value: 3002
+      - op: replace
+        path: /spec/ports/0/targetPort
+        value: 3000
