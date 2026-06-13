@@ -34,11 +34,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 RUN rm -rf packages/*/src
 
-# 安装字体到系统级（fontconfig），确保浏览器字体回退链生效
-RUN mkdir -p /usr/local/share/fonts/custom && \
-    cp /app/packages/core/fonts/*.ttf /usr/local/share/fonts/custom/ && \
-    fc-cache -f
-
 # 字体目录覆盖（不设置则使用内置字体 packages/core/fonts/）
 ENV FONTS_DIR=
 
