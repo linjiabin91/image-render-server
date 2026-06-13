@@ -26,7 +26,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/rate-limit": "^11.0.0",
     "@fastify/under-pressure": "^9.0.3",
     "@image-render-server/core": "*",
     "fastify": "^5.8.5",
