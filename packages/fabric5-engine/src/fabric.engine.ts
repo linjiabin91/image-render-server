@@ -1,18 +1,18 @@
+import type {FabricObjectLike, FabricTemplateJson, ImageLike} from "@image-render-server/core";
 import {
     autoRegisterFonts,
+    collectImageUrls,
     createHttpImageLoader,
     encodePngRgba,
+    type Engine,
+    logger,
     normalizeImageOptions,
     ObjectPool,
     patchCanvas,
-    collectImageUrls,
-    type Engine,
-    logger,
     PerfTimer,
     type RenderOptions,
     resolveVariables
 } from "@image-render-server/core";
-import type {FabricTemplateJson, FabricObjectLike, ImageLike} from "@image-render-server/core";
 import {Fabric5SkiaFontRegistry} from "./fabric5-skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 import {fabric} from 'fabric';
@@ -33,17 +33,6 @@ autoRegisterFonts(new Fabric5SkiaFontRegistry(), import.meta.url);
 
 fabric.util.createCanvasElement = () => patchCanvas(new Canvas(1, 1)) as unknown as HTMLCanvasElement;
 
-// ── Font weight 兼容 patch ────────────────────────────────────────────────
-//
-// skia-canvas 的 CSS font 匹配比浏览器严格，fontWeight 不匹配时会回退到
-// 系统字体而不是自动合成（faux bold）。此处去掉 fontWeight/fontStyle，
-// 让 Skia 用分组注册的默认权重匹配，避免因权重不匹配导致回退。
-// 注意：若日后需支持 fontWeight 切换变体，可删除此 patch。
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(fabric.Text.prototype as any)._getFontString = function (this: Record<string, any>) {
-    return this.fontSize + 'px "' + this.fontFamily + '"';
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 图片加载失败追踪

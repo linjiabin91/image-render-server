@@ -3,7 +3,7 @@ import type {ImageLike, FabricTemplateJson, FabricObjectLike} from "@image-rende
 import {SkiaFontRegistry} from "./skia-font-registry.js";
 import {Canvas, loadImage} from 'skia-canvas';
 
-import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas, Text as FabricText} from 'fabric/node';
+import {FabricImage, getEnv, getFabricDocument, setEnv, StaticCanvas} from 'fabric/node';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -22,18 +22,6 @@ const imageLoader = createHttpImageLoader(async (buf) => loadImage(buf), {
     cacheDir: resolve(tmpdir(), 'fabric7-image-cache'),
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Fabric 7 拦截 — 图片加载走 @napi-rs/canvas
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CSS 约束修正 — 前端 CSS object-fit 导致的 width/scaleX 错配
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 替换 Fabric 7 内部 document — 拦截 createElement('canvas') 返回 @napi-rs/canvas
-// ═══════════════════════════════════════════════════════════════════════════
-
 const origDoc = getFabricDocument();
 const proxyDoc = new Proxy(origDoc, {
     get(target, prop, receiver) {
@@ -50,18 +38,6 @@ const proxyDoc = new Proxy(origDoc, {
     },
 });
 setEnv({...getEnv(), document: proxyDoc});
-
-// ── Font weight 兼容 patch ────────────────────────────────────────────────
-//
-// skia-canvas 的 CSS font 匹配比浏览器严格，fontWeight 不匹配时会回退到
-// 系统字体而不是自动合成（faux bold）。此处去掉 fontWeight/fontStyle，
-// 让 Skia 用分组注册的默认权重匹配，避免因权重不匹配导致回退。
-// 注意：若日后需支持 fontWeight 切换变体，可删除此 patch。
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(FabricText.prototype as any)._getFontString = function (this: Record<string, any>) {
-    return this.fontSize + 'px "' + this.fontFamily + '"';
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Fabric 7 拦截 — 图片加载走 @napi-rs/canvas
