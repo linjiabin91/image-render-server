@@ -13,31 +13,12 @@ triggers:
         - master
 
 pipeline:
-  - lint:
-      stage: Lint
-      displayName: Run lint
-      steps:
-        - checkout: '{}'
-        - run: corepack enable && corepack prepare pnpm@latest --activate
-        - run: pnpm install
-        - run: pnpm run lint
-
-  - build:
-      stage: Build
-      displayName: Run build
-      steps:
-        - checkout: '{}'
-        - run: corepack enable && corepack prepare pnpm@latest --activate
-        - run: pnpm install
-        - run: pnpm run build
-
-  - test:
-      stage: Test
-      displayName: Run tests
-      depends: build
-      steps:
-        - checkout: '{}'
-        - run: corepack enable && corepack prepare pnpm@latest --activate
-        - run: pnpm install
-        - run: pnpm run build
-        - run: pnpm run test
+  node:
+    image: node:23
+    steps:
+      - checkout: {}
+      - run: corepack enable && corepack prepare pnpm@latest --activate
+      - run: pnpm install
+      - run: pnpm run lint
+      - run: pnpm run build
+      - run: pnpm run test
