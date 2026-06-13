@@ -29,15 +29,15 @@ export class SkiaFontRegistry implements FontRegistry {
       } catch (err) {
         logger.warn({err, font: family}, "font group registration failed");
       }
-      // 同时按完整文件名注册别名，兼容旧模板
-      for (const {path} of members) {
-        const name = path.split('/').pop()!.replace(/\.(ttf|otf)$/i, '');
-        try {
-          FontLibrary.use(name, path);
-        } catch (err) {
-          logger.warn({err, font: name}, "font alias registration failed");
-        }
-      }
+      // // 同时按完整文件名注册别名，兼容旧模板
+      // for (const {path} of members) {
+      //   const name = path.split('/').pop()!.replace(/\.(ttf|otf)$/i, '');
+      //   try {
+      //     FontLibrary.use(name, path);
+      //   } catch (err) {
+      //     logger.warn({err, font: name}, "font alias registration failed");
+      //   }
+      // }
     }
   }
 }
