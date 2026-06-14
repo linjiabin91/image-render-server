@@ -6,6 +6,11 @@ resources:
 
 namePrefix: leafer-
 
+labels:
+  - pairs:
+      app: leafer-image-render-server
+    includeSelectors: true
+
 images:
   - name: image-render-server
     newName: image-render-server

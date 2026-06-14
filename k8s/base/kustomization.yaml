@@ -7,6 +7,8 @@ resources:
   - service.yaml
   - hpa.yaml
 
+# 具体标签值由各 overlay 覆盖，避免多引擎部署时 service/pod 串扰
 labels:
   - pairs:
-      app: image-render-server
+      app: placeholder
+    includeSelectors: true
