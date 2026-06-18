@@ -10,7 +10,7 @@
     "start": "pnpm run build && LOG_PRETTY=true node dist/server.js"
   },
   "dependencies": {
-    "@leafer-ui/node": "^2.1.4",
+    "@leafer-ui/node": "^2.1.6",
     "@leafer/core": "^2.1.4",
     "@image-render-server/core": "*",
     "@image-render-server/server": "*",
