@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@leafer-ui/node": "^2.1.4",
-    "@leafer/core": "^2.1.4",
+    "@leafer/core": "^2.1.6",
     "@image-render-server/core": "*",
     "@image-render-server/server": "*",
     "sharp": "^0.33.5",
