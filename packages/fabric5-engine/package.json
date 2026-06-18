@@ -12,7 +12,7 @@
   "dependencies": {
     "@image-render-server/core": "*",
     "@image-render-server/server": "*",
-    "fabric": "5.5.2",
+    "fabric": "7.4.0",
     "skia-canvas": "^3.0.8",
     "lru-cache": "^11.5.1",
     "@napi-rs/image": "^1.12.0"
